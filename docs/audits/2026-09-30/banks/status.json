@@ -19,7 +19,7 @@
     "No authentic representative export per selected bank/product/channel/settings; named importer compatibility unknown.",
     "Detailed current production access/contracts/rates/history/pagination/renewal unresolved for several bank/API products.",
     "Human must select file-import products, provider/privacy model and authorize implementation.",
-    "Enable Banking officially restricts licensed service to Czech-resident payment-service users; authorized TPP technical use is separate."
+    "Enable Banking does not currently provide its licensed service to Czech-resident payment-service users; authorized TPP technical use is separate."
   ],
   "checks": {
     "passed": [
