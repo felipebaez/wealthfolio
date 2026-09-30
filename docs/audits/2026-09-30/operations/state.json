@@ -16,10 +16,7 @@
     "docs/audits/2026-09-30/operations.md",
     "docs/audits/2026-09-30/commercial-readiness.md"
   ],
-  "acceptedRequirements": [
-    "More than 50 clients",
-    "Single private server or VM"
-  ],
+  "acceptedRequirements": ["More than 50 clients", "Single private server or VM"],
   "blockers": [],
   "pending": "Synthesis review in issue #8; audit issue remains open. All proposed implementation pending human direction.",
   "validationLimitations": [
@@ -27,16 +24,16 @@
     "Node 26.10.0 and pnpm 11.19.0 differ from requested 24 and 10.33.4",
     "No runtime/container/recovery/load/CSRF/IdP validation",
     "No published image digest/contents verification",
-    "No dependency license scan or legal approval",
-    "Prettier unavailable without local dependency tree"
+    "No dependency license scan or legal approval"
   ],
   "passedChecks": {
     "nodeScriptTests": 4,
     "pythonScriptUnitTests": 22,
     "pinnedSourceReferences": 52,
-    "diffWhitespace": true
+    "diffWhitespace": true,
+    "auditPrettier": "3.8.1 with repository Markdown/JSON settings; Tailwind plugin irrelevant"
   },
   "synchronizationFailures": [],
-  "lastSyncAt": "2026-09-30T12:50:24.316255+00:00",
+  "lastSyncAt": "2026-09-30T12:52:14.074994+00:00",
   "coordination": "Synthesis #8 maintains shared index. Worker writes only owned state/documents. No continuous monitor configured."
 }
