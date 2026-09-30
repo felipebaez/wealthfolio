@@ -3,8 +3,8 @@
 Fork source: `main` commit `6ee11b1278eff8b5123280e740fa6983b501952b`.
 [Native ARM64 production build](https://github.com/felipebaez/wealthfolio/actions/runs/36716582110).
 Image: `wealthfolio-staging:6ee11b1278eff8b5123280e740fa6983b501952b`; ID
-`sha256:4f271d67f98d74319fe46ba0694d5f5a9151519adc5088023434af5c567574f3`. Running URL:
-<http://localhost:18088>. Application code is unchanged.
+`sha256:4f271d67f98d74319fe46ba0694d5f5a9151519adc5088023434af5c567574f3`.
+Running URL: <http://localhost:18088>. Application code is unchanged.
 
 | Check                                           | Status                       | Evidence / limitation                                                                                                                                                                      |
 | ----------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -36,28 +36,38 @@ Image: `wealthfolio-staging:6ee11b1278eff8b5123280e740fa6983b501952b`; ID
 | Machine reboot/sleep                            | Not run                      | Restart policy inspected; no system-wide sleep/login settings changed. Reboot requires starting named Colima profile; sleep suspends service                                               |
 | Chat/issue synchronization                      | Partial                      | Issue/title verified. Category tool acknowledges moves, but subsequent list still reports this chat in Tasks; no verified category move claimed                                            |
 
-Private evidence: `/Users/felipebaez/Development/Wealthfolio-staging-runtime/evidence/`.
-Screenshots: `csv-preview.jpg`, `csv-import-complete.jpg`, `holdings.jpg`, `portfolio-verified.jpg`,
-`restored-portfolio.jpg`. API reports/logs and runtime security checks are alongside them.
-Credentials are kept separately in `secrets/`; do not publish recovery bundles.
+Private evidence:
+`/Users/felipebaez/Development/Wealthfolio-staging-runtime/evidence/`.
+Screenshots: `csv-preview.jpg`, `csv-import-complete.jpg`, `holdings.jpg`,
+`portfolio-verified.jpg`, `restored-portfolio.jpg`. API reports/logs and runtime
+security checks are alongside them. Credentials are kept separately in
+`secrets/`; do not publish recovery bundles.
 
 Verified backup:
-`/Users/felipebaez/Development/Wealthfolio-staging-runtime/backups/20260930T131221163417Z`. The
-restored project's data is retained; its server is stopped after verification. No volumes, backups
-or prior images were deleted.
+`/Users/felipebaez/Development/Wealthfolio-staging-runtime/backups/20260930T131221163417Z`.
+The restored project's data is retained; its server is stopped after
+verification. No volumes, backups or prior images were deleted.
 
-Initial setup corrections: the API harness used one-based pagination; the API uses zero-based pages.
-The harness also skipped onboarding before setting base currency; setting USD corrected the
-resulting FX warning. An internal-only Docker network ignored port publishing; the final bridge
-disables NAT and preserves loopback publication. These changes require no application patch.
+Initial setup corrections: the API harness used one-based pagination; the API
+uses zero-based pages. The harness also skipped onboarding before setting base
+currency; setting USD corrected the resulting FX warning. An internal-only
+Docker network ignored port publishing; the final bridge disables NAT and
+preserves loopback publication. These changes require no application patch.
 
-**Architecture impact:** application API/auth, business logic, persistence/schema, events/background
-execution and user-edit precedence remain unchanged. Deployment changes network/build configuration
-and adds protected key staging to handle host/container UID differences. Tested guarantees cover
-synthetic cash data, authentication, local exposure, recreation and complete restore. Provider quote
-retrieval, cross-currency valuation, real broker/device sync and AI are intentionally unverified.
+**Architecture impact:** application API/auth, business logic,
+persistence/schema, events/background execution and user-edit precedence remain
+unchanged. Deployment changes network/build configuration and adds protected key
+staging to handle host/container UID differences. Tested guarantees cover
+synthetic cash data, authentication, local exposure, recreation and complete
+restore. Provider quote retrieval, cross-currency valuation, real broker/device
+sync and AI are intentionally unverified.
 
-[PR #12](https://github.com/felipebaez/wealthfolio/pull/12) remains In Progress awaiting review. The
-previous PR CI passed frontend, Rust, Android, iOS and translations; formatting failed on the new
-guide/validation files, which were subsequently formatted. Final-revision CI is tracked in the PR;
-earlier results are not claimed as final-revision passes. No merge or production deployment.
+[PR #12](https://github.com/felipebaez/wealthfolio/pull/12) remains In Progress
+awaiting review. The previous PR CI passed frontend, Rust, Android, iOS and
+translations; formatting failed on the new guide/validation files, which were
+subsequently formatted. Final-revision CI is tracked in the PR; earlier results
+are not claimed as final-revision passes. No merge or production deployment.
+
+Docker stop reached the configured 60-second termination timeout (exit 137). The
+complete stopped SQLite/WAL snapshot restored successfully; graceful signal
+shutdown itself is not claimed.
