@@ -20,7 +20,10 @@ for (const document of documents) {
   for (const match of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
     const target = match[1];
     if (target.startsWith("https://github.com/felipebaez/wealthfolio/blob/")) {
-      const parsed = /^https:\/\/github\.com\/felipebaez\/wealthfolio\/blob\/([^/]+)\/([^#]+)(?:#L(\d+)(?:-L(\d+))?)?$/.exec(target);
+      const parsed =
+        /^https:\/\/github\.com\/felipebaez\/wealthfolio\/blob\/([^/]+)\/([^#]+)(?:#L(\d+)(?:-L(\d+))?)?$/.exec(
+          target,
+        );
       if (!parsed || parsed[1] !== baseline) {
         errors.push(`${document}: non-baseline source link ${target}`);
         continue;
@@ -47,8 +50,13 @@ for (const document of documents) {
         errors.push(`${document}: relative target missing ${target}`);
       } else if (fragment && absolute.endsWith(".md")) {
         const headings = readFileSync(absolute, "utf8").match(/^#+ .+$/gm) ?? [];
-        const slugs = headings.map((heading) => heading.replace(/^#+ /, "").toLowerCase()
-          .replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/ /g, "-"));
+        const slugs = headings.map((heading) =>
+          heading
+            .replace(/^#+ /, "")
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+            .replace(/ /g, "-"),
+        );
         if (!slugs.includes(fragment)) errors.push(`${document}: heading missing ${target}`);
       }
       relativeLinks += 1;
@@ -59,5 +67,7 @@ if (errors.length) {
   process.stderr.write(`${errors.join("\n")}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write(`Validated ${documents.length} documents, ${pinnedLinks} pinned source links and ${relativeLinks} local links. No application security tests executed.\n`);
+  process.stdout.write(
+    `Validated ${documents.length} documents, ${pinnedLinks} pinned source links and ${relativeLinks} local links. No application security tests executed.\n`,
+  );
 }
