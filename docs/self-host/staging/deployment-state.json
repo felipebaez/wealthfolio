@@ -1,0 +1,16 @@
+{
+  "issue_url": "https://github.com/felipebaez/wealthfolio/issues/7",
+  "chat_id": "01a0f253-ac64-76a1-b316-7f69f7dccb44",
+  "status": "In Progress",
+  "branch": "deploy/docker-staging",
+  "worktree": "/Users/felipebaez/Development/Wealthfolio-staging",
+  "source_branch": "main",
+  "source_commit": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "deployed_commit": null,
+  "image": null,
+  "access_url": null,
+  "runtime_directory": "/Users/felipebaez/Development/Wealthfolio-staging-runtime",
+  "docker_context": null,
+  "last_synchronization": "2026-09-30T09:40:00-03:00",
+  "notes": "macOS guest on Apple M2 Virtual; kern.hv_support=0. Native Colima VZ startup failed. Investigating an isolated QEMU fallback. Existing audit edits remain untouched."
+}

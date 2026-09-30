@@ -1,0 +1,57 @@
+name: Staging image artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Fork commit or ref to build (empty uses this workflow revision)
+        required: false
+        type: string
+  push:
+    branches: [deploy/docker-staging]
+    paths: [.github/workflows/staging-image.yml, Dockerfile]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'felipebaez/wealthfolio'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - name: Record source revision
+        id: source
+        run: echo "revision=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build fork image without optional integrations
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          tags: wealthfolio-staging:${{ steps.source.outputs.revision }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
+            org.opencontainers.image.source=https://github.com/felipebaez/wealthfolio
+          cache-from: type=gha,scope=staging-arm64
+          cache-to: type=gha,mode=max,scope=staging-arm64
+      - name: Export image and checksum
+        env:
+          REVISION: ${{ steps.source.outputs.revision }}
+        run: |
+          docker save "wealthfolio-staging:$REVISION" | gzip > staging-image.tar.gz
+          sha256sum staging-image.tar.gz > staging-image.tar.gz.sha256
+          printf '%s\n' "$REVISION" > source-revision.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-image-${{ steps.source.outputs.revision }}
+          path: |
+            staging-image.tar.gz
+            staging-image.tar.gz.sha256
+            source-revision.txt
+          retention-days: 30
+          compression-level: 0
