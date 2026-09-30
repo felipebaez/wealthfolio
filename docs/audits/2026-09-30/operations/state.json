@@ -1,0 +1,39 @@
+{
+  "issueUrl": "https://github.com/felipebaez/wealthfolio/issues/5",
+  "issueNumber": 5,
+  "issueTitle": "Audit: self-hosted operations, licensing, and commercial readiness",
+  "chatId": "01a0f24e-74b1-76b0-9d97-993f434ecac1",
+  "chatName": "🟡-5-Audit: self-hosted operations, licensing, and commercial readiness",
+  "category": "In Progress",
+  "sectionId": "6573f0da-218d-4936-853c-a076264f9ef9",
+  "status": "status:in-progress",
+  "issueState": "OPEN",
+  "branch": "audit/5-operations",
+  "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/operations",
+  "pullRequest": "https://github.com/felipebaez/wealthfolio/pull/11",
+  "sourceBaseline": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "deliverables": [
+    "docs/audits/2026-09-30/operations.md",
+    "docs/audits/2026-09-30/commercial-readiness.md"
+  ],
+  "acceptedRequirements": ["More than 50 clients", "Single private server or VM"],
+  "blockers": [],
+  "pending": "Synthesis review in issue #8; audit issue remains open. All proposed implementation pending human direction.",
+  "validationLimitations": [
+    "Cargo and Docker absent from PATH",
+    "Node 26.10.0 and pnpm 11.19.0 differ from requested 24 and 10.33.4",
+    "No runtime/container/recovery/load/CSRF/IdP validation",
+    "No published image digest/contents verification",
+    "No dependency license scan or legal approval"
+  ],
+  "passedChecks": {
+    "nodeScriptTests": 4,
+    "pythonScriptUnitTests": 22,
+    "pinnedSourceReferences": 52,
+    "diffWhitespace": true,
+    "auditPrettier": "3.8.1 with repository Markdown/JSON settings; Tailwind plugin irrelevant"
+  },
+  "synchronizationFailures": [],
+  "lastSyncAt": "2026-09-30T12:52:14.074994+00:00",
+  "coordination": "Synthesis #8 maintains shared index. Worker writes only owned state/documents. No continuous monitor configured."
+}
