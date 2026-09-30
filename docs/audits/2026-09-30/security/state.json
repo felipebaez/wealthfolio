@@ -1,0 +1,51 @@
+{
+  "issue": {
+    "number": 3,
+    "url": "https://github.com/felipebaez/wealthfolio/issues/3",
+    "title": "Audit: client identity, isolation, and advisor permissions",
+    "state": "OPEN",
+    "statusLabel": "status:in-progress"
+  },
+  "chat": {
+    "id": "01a0f24e-6c6c-7ae2-8aa2-529ebe79469c",
+    "name": "🟡-3-Audit: client identity, isolation, and advisor permissions",
+    "category": "In Progress",
+    "sectionId": "6573f0da-218d-4936-853c-a076264f9ef9",
+    "state": "review-pending"
+  },
+  "branch": "audit/3-security",
+  "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/security",
+  "sourceBaseline": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "pr": {
+    "number": 9,
+    "url": "https://github.com/felipebaez/wealthfolio/pull/9",
+    "state": "OPEN",
+    "base": "main",
+    "attachedToChat": true
+  },
+  "synthesis": {
+    "issue": 8,
+    "chatId": "01a0f256-6938-71a1-b66a-30bd1f26609d",
+    "ownsConsolidatedIndex": true
+  },
+  "acceptedTarget": {
+    "clients": "more than 50",
+    "infrastructure": "one private server or VM",
+    "capacityMeasured": false
+  },
+  "checks": {
+    "documentation": "3 documents, 56 source links, 8 local links and staged/unstaged whitespace passed",
+    "nodeScriptTests": "4/4 passed; not security tests",
+    "frontendTests": "not executed; automatic pnpm install interrupted",
+    "rustDocker": "not run; missing prerequisites",
+    "securityCapacityRuntime": "unexecuted"
+  },
+  "blockers": [
+    "Runtime verification requires Cargo/Docker or suitable prepared staging and pinned JS tools/dependencies.",
+    "VM hardware, concurrency, portfolio sizes, retention and RPO/RTO remain unspecified."
+  ],
+  "synchronizationFailures": [],
+  "lastSynchronizationAt": "2026-09-30T12:48:31.944588+00:00",
+  "continuousMonitorConfigured": false,
+  "nextAction": "Synthesis review and human implementation selection; keep issue open in progress."
+}
