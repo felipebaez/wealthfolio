@@ -16,18 +16,18 @@ for the authorized brief/workflow.
 | Chat title           | `🟡-2-Audit: architecture and upstream maintenance`                                                                                                 |
 | Category             | In Progress, `6573f0da-218d-4936-853c-a076264f9ef9`                                                                                                 |
 | Branch/worktree      | `audit/2-architecture`, `/Users/felipebaez/Development/Wealthfolio-audits/architecture`                                                             |
-| PR                   | Pending creation at this documentation revision; authoritative URL/revision recorded in issue #2 after creation                                     |
+| PR                   | [PR #29](https://github.com/felipebaez/wealthfolio/pull/29), open against fork `main`; exact final revision recorded in issue #2                    |
 | Technical synthesis  | [Issue #8](https://github.com/felipebaez/wealthfolio/issues/8), chat `01a0f256-6938-71a1-b66a-30bd1f26609d`; owns consolidated review/index updates |
 | Blockers             | Runtime reproduction/capacity tests need matching toolchain/dependencies and a synthetic runtime; no blocker to delivering documentation            |
-| Last synchronization | 2026-09-30; final issue comment records exact UTC checkpoint and PR revision                                                                        |
+| Last synchronization | 2026-09-30 12:56 UTC: issue reread and chat title/category synchronized; final issue comment records exact revision/checkpoint                      |
 | Monitoring           | No continuous monitor configured                                                                                                                    |
 
 This record supplements the synthesis-owned index without editing it. The human workflow addendum
 was read through authenticated `gh` at
 [parent comment](https://github.com/felipebaez/wealthfolio/issues/1#issuecomment-5911547424). Issue
-title/body/comments/labels were read at startup and transitions and will be read again before final
-handoff. Title/category synchronization succeeded at startup; final synchronization is recorded in
-the issue.
+title/body/comments/labels were read at startup and transitions; final title/state/labels/comments
+were reread before handoff. Title/category synchronization succeeded again at the final checkpoint;
+the issue records the final revision.
 
 ## Baseline and environment
 
@@ -56,7 +56,7 @@ source links in the report pin the audited SHA.
 | `git status --short`, `git diff -- pnpm-lock.yaml package.json` after interruption   | **Passed inspection: no tracked product/lockfile changes**                                                                                                                                                                                                                   | Scope preserved. Does not prove complete dependency setup or clean global cache.                                                                      |
 | `node docs/audits/2026-09-30/architecture/check-source.mjs`                          | **Passed:** 305 web literal calls, 315 Tauri literal calls, 314 mapped commands and 357 registrations, zero missing; 62 pinned links and two local links validated. An initial run before this ledger existed correctly failed its local-link check; the final rerun passed. | Dependency-free static inventory and documentation source path/line/reference checks. No runtime DTO, auth, event or network behavior.                |
 | Isolated Prettier 3.8.1 formatting/check                                             | **Passed** for the owned report, ledger and auxiliary artifacts; matching core/Markdown repository options, no Tailwind class sorting needed                                                                                                                                 | Formatter fetched into npm exec cache; no project dependency install or product lockfile edit. Full repository format job not run.                    |
-| Final `git diff --check`, scoped diff/status review                                  | Final result recorded in issue after documentation validation                                                                                                                                                                                                                | Whitespace and owned documentation scope. No product behavior guarantee.                                                                              |
+| Final `git diff --cached --check`, scoped diff/status review                         | **Passed** on all five staged, owned documentation/auxiliary files; no product paths included. Rechecked after coordination update.                                                                                                                                          | Whitespace and owned documentation scope. No product behavior guarantee.                                                                              |
 
 The audit helper reads adapter source and uses the same general literal-call/registration patterns
 as the existing parity test. It omits test/spec files and scans feature-local adapter directories.
