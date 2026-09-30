@@ -1,0 +1,69 @@
+{
+  "updated_at": "2026-09-30T12:33:09.458718+00:00",
+  "baseline": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "parent": {
+    "number": 1,
+    "url": "https://github.com/felipebaez/wealthfolio/issues/1",
+    "chat_id": "01a0f24b-3226-73b3-8df3-3aa9f708777d",
+    "branch": "audit/advisory-orchestration",
+    "status": "in-progress",
+    "pr": null
+  },
+  "sidebar_sections": {
+    "in-progress": "6573f0da-218d-4936-853c-a076264f9ef9",
+    "not-started": "b7bf6d4c-08e6-4f3a-84fe-b974ed2cd1e6",
+    "blocked": "3fca78f7-7ccf-4915-a037-475856e68a65",
+    "completed": "b89fa367-6a48-4d60-9f52-496236c2c7ce"
+  },
+  "audits": [
+    {
+      "key": "architecture",
+      "title": "Audit: architecture and upstream maintenance",
+      "url": "https://github.com/felipebaez/wealthfolio/issues/2",
+      "number": 2,
+      "branch": "audit/2-architecture",
+      "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/architecture",
+      "status": "in-progress",
+      "chat_id": null,
+      "pr": null,
+      "blockers": []
+    },
+    {
+      "key": "security",
+      "title": "Audit: client identity, isolation, and advisor permissions",
+      "url": "https://github.com/felipebaez/wealthfolio/issues/3",
+      "number": 3,
+      "branch": "audit/3-security",
+      "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/security",
+      "status": "in-progress",
+      "chat_id": null,
+      "pr": null,
+      "blockers": []
+    },
+    {
+      "key": "banks",
+      "title": "Audit: Czech bank imports and connectivity",
+      "url": "https://github.com/felipebaez/wealthfolio/issues/4",
+      "number": 4,
+      "branch": "audit/4-banks",
+      "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/banks",
+      "status": "in-progress",
+      "chat_id": null,
+      "pr": null,
+      "blockers": []
+    },
+    {
+      "key": "operations",
+      "title": "Audit: self-hosted operations, licensing, and commercial readiness",
+      "url": "https://github.com/felipebaez/wealthfolio/issues/5",
+      "number": 5,
+      "branch": "audit/5-operations",
+      "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/operations",
+      "status": "in-progress",
+      "chat_id": null,
+      "pr": null,
+      "blockers": []
+    }
+  ],
+  "monitor": null
+}
