@@ -1,0 +1,47 @@
+{
+  "issueNumber": 4,
+  "issueUrl": "https://github.com/felipebaez/wealthfolio/issues/4",
+  "issueTitle": "Audit: Czech bank imports and connectivity",
+  "chatId": "01a0f24e-7046-73d1-8419-90e6f699d837",
+  "chatName": "🟡-4-Audit: Czech bank imports and connectivity",
+  "category": "In Progress",
+  "categoryId": "6573f0da-218d-4936-853c-a076264f9ef9",
+  "state": "in-progress",
+  "statusLabel": "status:in-progress",
+  "reason": "Substantive audit delivered; PR awaits synthesis/consolidation review. Issue remains open.",
+  "branch": "audit/4-banks",
+  "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/banks",
+  "prUrl": "https://github.com/felipebaez/wealthfolio/pull/10",
+  "prState": "OPEN",
+  "baseline": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "documentationCommit": "d0ed1f36733819304593c971d46ad4a2dfd9c2a9",
+  "externalImplementationBlockers": [
+    "No authentic representative export per selected bank/product/channel/settings; named importer compatibility unknown.",
+    "Detailed current production access/contracts/rates/history/pagination/renewal unresolved for several bank/API products.",
+    "Human must select file-import products, provider/privacy model and authorize implementation.",
+    "Enable Banking does not currently provide its licensed service to Czech-resident payment-service users; authorized TPP technical use is separate."
+  ],
+  "checks": {
+    "passed": [
+      "7 audit-only numeric-helper and CASH-expression assertions",
+      "4 lightweight Tauri wrapper assertions",
+      "Direct local Prettier formatting checks",
+      "35 pinned repository paths/line anchors validated",
+      "32 dated external source references present",
+      "Diff whitespace and owned-path review"
+    ],
+    "notRun": [
+      "Vitest: pnpm 11 auto-installed dependencies then exited before tests; lock/workspace modifications restored",
+      "Rust checks: cargo absent",
+      "Docker-based checks: docker absent",
+      "Application type/build/E2E checks: no product changes and required environment not established",
+      "Real bank export compatibility, live API and tenant-security behavior"
+    ],
+    "environment": "Node 26.10.0/pnpm 11.19.0 versus repository Node 24/pnpm 10.33.4. Ignored node_modules from automatic install remain local only."
+  },
+  "synthesisIssue": "https://github.com/felipebaez/wealthfolio/issues/8",
+  "sharedIndexOwnership": "Synthesis/orchestration only; this worker writes only its own auxiliary status.",
+  "lastSynchronizedAt": "2026-09-30T12:49:17Z",
+  "synchronizationFailures": [],
+  "monitorConfigured": false
+}
