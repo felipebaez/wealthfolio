@@ -33,3 +33,9 @@ git rev-parse 'v3.9.1^{}'
 ## Initial lightweight validation
 
 `node --test scripts/tauri.test.mjs`: 4 tests passed under installed Node 26.10.0. Installed pnpm 11.19.0 differs from required pnpm 10.33.4; no dependency installation performed. This does not establish frontend, Rust, profile-security or deployment correctness. Cargo/Docker absent on PATH.
+
+## Further baseline evidence
+
+- `gh api repos/wealthfolio/wealthfolio/compare/v3.9.1...main`: source is 38 commits ahead of latest release, zero behind.
+- Exact source HEAD Actions API reported one successful Warm Rust Cache run: https://github.com/wealthfolio/wealthfolio/actions/runs/36652133048. This is not evidence that a full PR check suite passed at HEAD.
+- `python3 -m unittest discover -s .github/scripts -p 'test_*.py'`: 22 tests passed. These script unit tests do not establish application/container encryption, isolation or recovery correctness.

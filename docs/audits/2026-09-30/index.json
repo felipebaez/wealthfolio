@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-09-30T12:33:09.458718+00:00",
+  "updated_at": "2026-09-30T12:34:57.200473+00:00",
   "baseline": "6ee11b1278eff8b5123280e740fa6983b501952b",
   "parent": {
     "number": 1,
@@ -7,7 +7,7 @@
     "chat_id": "01a0f24b-3226-73b3-8df3-3aa9f708777d",
     "branch": "audit/advisory-orchestration",
     "status": "in-progress",
-    "pr": null
+    "pr": "https://github.com/felipebaez/wealthfolio/pull/6"
   },
   "sidebar_sections": {
     "in-progress": "6573f0da-218d-4936-853c-a076264f9ef9",
