@@ -240,3 +240,11 @@ Inspect progress using available coordination tools. Report meaningful changes a
 START NOW
 
 Verify repository and tool access, establish the baseline, create the parent audit issue and dedicated audit chats, dispatch their briefs, and coordinate them through a consolidated recommendation. Continue independently where possible and ask only for information that materially affects the outcome.
+## Dispatched audits
+
+- https://github.com/felipebaez/wealthfolio/issues/2 — Codex chat `01a0f24e-6909-7ec2-9daf-cb4f56346fab` — branch `audit/2-architecture` — In Progress
+- https://github.com/felipebaez/wealthfolio/issues/3 — Codex chat `01a0f24e-6c6c-7ae2-8aa2-529ebe79469c` — branch `audit/3-security` — In Progress
+- https://github.com/felipebaez/wealthfolio/issues/4 — Codex chat `01a0f24e-7046-73d1-8419-90e6f699d837` — branch `audit/4-banks` — In Progress
+- https://github.com/felipebaez/wealthfolio/issues/5 — Codex chat `01a0f24e-74b1-76b0-9d97-993f434ecac1` — branch `audit/5-operations` — In Progress
+
+No unattended monitoring configured. Documentation-only PRs remain under review until consolidated acceptance is checked.

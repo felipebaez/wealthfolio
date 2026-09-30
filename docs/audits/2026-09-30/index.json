@@ -24,9 +24,12 @@
       "branch": "audit/2-architecture",
       "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/architecture",
       "status": "in-progress",
-      "chat_id": null,
+      "chat_id": "01a0f24e-6909-7ec2-9daf-cb4f56346fab",
       "pr": null,
-      "blockers": []
+      "blockers": [],
+      "host_id": "local",
+      "chat_name": "\ud83d\udfe1-2-Audit: architecture and upstream maintenance",
+      "category": "In Progress"
     },
     {
       "key": "security",
@@ -36,9 +39,12 @@
       "branch": "audit/3-security",
       "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/security",
       "status": "in-progress",
-      "chat_id": null,
+      "chat_id": "01a0f24e-6c6c-7ae2-8aa2-529ebe79469c",
       "pr": null,
-      "blockers": []
+      "blockers": [],
+      "host_id": "local",
+      "chat_name": "\ud83d\udfe1-3-Audit: client identity, isolation, and advisor permissions",
+      "category": "In Progress"
     },
     {
       "key": "banks",
@@ -48,9 +54,12 @@
       "branch": "audit/4-banks",
       "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/banks",
       "status": "in-progress",
-      "chat_id": null,
+      "chat_id": "01a0f24e-7046-73d1-8419-90e6f699d837",
       "pr": null,
-      "blockers": []
+      "blockers": [],
+      "host_id": "local",
+      "chat_name": "\ud83d\udfe1-4-Audit: Czech bank imports and connectivity",
+      "category": "In Progress"
     },
     {
       "key": "operations",
@@ -60,9 +69,12 @@
       "branch": "audit/5-operations",
       "worktree": "/Users/felipebaez/Development/Wealthfolio-audits/operations",
       "status": "in-progress",
-      "chat_id": null,
+      "chat_id": "01a0f24e-74b1-76b0-9d97-993f434ecac1",
       "pr": null,
-      "blockers": []
+      "blockers": [],
+      "host_id": "local",
+      "chat_name": "\ud83d\udfe1-5-Audit: self-hosted operations, licensing, and commercial readiness",
+      "category": "In Progress"
     }
   ],
   "monitor": null
