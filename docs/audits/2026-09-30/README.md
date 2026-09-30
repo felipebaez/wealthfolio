@@ -1,43 +1,135 @@
 # Self-hosted advisory platform audit — 2026-09-30
 
-Parent issue: https://github.com/felipebaez/wealthfolio/issues/1. Consolidated documentation PR: https://github.com/felipebaez/wealthfolio/pull/6.
+Parent [#1](https://github.com/felipebaez/wealthfolio/issues/1), synthesis
+[#8](https://github.com/felipebaez/wealthfolio/issues/8), consolidated
+documentation [PR #6](https://github.com/felipebaez/wealthfolio/pull/6). Audited
+application source: `6ee11b1278eff8b5123280e740fa6983b501952b`. Documentation
+review remains In Progress; this report does not approve client launch.
 
-## Executive recommendation (provisional; worker review underway)
+## Executive recommendation
 
-**Inferred recommendation:** pilot with a separate application instance, database, secret vault and keys per client. This avoids sharing the existing installation-wide profile chooser among unrelated clients. Keep access at a trusted identity-provider/reverse-proxy boundary with MFA and client-specific authorization. Separate instances still require validated deployment, session revocation, backups, recovery and operational procedures. Sharing a password or protecting profile selection is insufficient as a business permission model.
+**Inferred recommendation:** keep Wealthfolio's React frontend, shared Rust
+financial services, SQLite repositories and database-per-profile runtimes. They
+are useful foundations, but installation login and profile passwords do not
+assign data to business clients. Current source loses the OIDC issuer/subject in
+a generic installation session, exposes the profile registry and permits
+selection of unprotected profiles. Do not admit unrelated clients to an
+unmodified shared installation.
 
-**Inferred longer-term direction:** evaluate one deployment using existing database-per-profile storage, adding durable issuer/subject identity, ownership, explicit advisor grants, operator administration and backend enforcement. Preserve the existing SQLite repositories and profile service contexts. Defer shared tenant-aware storage until measurements demonstrate a need; there is no established requirement for a database rewrite.
+Use **A, a separate application instance/database/vault/keys per client**, for a
+two-synthetic-client isolation and recovery trial. For the accepted >50-client
+single-VM launch, choose an automated A fleet with measured capacity or
+implement **B, one deployment with explicit identity ownership and backend
+client/advisor/operator permissions on existing profiles**. B is the preferred
+product direction if integrated advisor access is essential; it needs a security
+project before client onboarding. A has the smallest source delta, but fleet
+operation and gateway revocation still need work. **C, shared tenant-aware
+financial storage, is deferred**; no measured evidence justifies a database
+rewrite. All three share trusted host/operator and single-VM failure boundaries.
+[Isolation comparison](isolation.md),
+[roadmap and pending decisions](roadmap.md).
 
-**Inferred import direction:** start with client-uploaded files for verified bank/product/export variants. Reuse preview, mappings and shared import services; strengthen provenance, repeat-import identity, deterministic monetary handling, transfers and reconciliation where evidence shows gaps. No named-bank compatibility is established merely by a parser feature or synthetic fixture. Automated read-only connectivity needs a separate bank/product, consent, certificate, licensing and privacy decision. Investment coverage remains distinct from payment-account coverage.
+**Inferred advisor policy:** explicit client-specific read-only grant, with
+edit/export as separate capabilities. Current app admission is broad access;
+adding an advisor to an OIDC allowlist cannot make them read-only. A can
+initially use a client-authorized export workflow. Clients remain private from
+one another; host/root and application-held keys do not provide privacy from the
+trusted infrastructure operator.
+[Permission matrix and threat model](permissions-threat-model.md).
 
-**Confirmed limitation:** this is an investigative source audit, not a passing client-isolation penetration test, financial calculation certification, load test, complete disaster-recovery drill, or legal approval. Source HEAD is 38 commits beyond the latest release and cannot be equated with published images. No product changes, merge or production deployment are authorized.
+**Inferred import direction:** certify one actual bank/product/channel/export
+variant using authorized sanitized structure and independent expected results.
+Reuse preview/templates/parser/core validation/writer/events. Address lost
+parser diagnostics, permissive number normalization/CASH float sums, missing
+bank source identity, best-effort run provenance and statement/transfer
+reconciliation. George's general CSV export is publicly documented; KB+ CSV
+evidence is business-tariff-specific; RB business variants and ČSOB CEB
+structured formats differ. No named-bank compatibility is established yet.
+Payment-account histories do not reconstruct investment trades, cost basis or
+returns. Automatic read-only connectivity has separate eligibility, consent,
+certificates, privacy and commercial gates; payment initiation stays excluded.
+[Bank/product matrix](banks.md), [import pipeline](imports.md).
 
-For capacity planning, the provisional assumption is up to 10 pilot clients on a single private server/VM; user clarification is pending. This assumption is not a measured capacity claim.
+**Inferred financial-output gate:** reproduce and correct missing/error FX
+lookup being presented as 1:1 in live holdings and exports. Decide how
+unavailable/stale/rebuilding data is displayed. Investigate interrupted
+historical recalculation before adding any persisted recovery mechanism.
+[Findings F08–F14](findings.md).
 
-## Deliverable map
+**Inferred operations/commercial gate:** promote an exact source/image digest
+through synthetic staging; validate trusted HTTPS ingress, no backend bypass,
+safe logs and measured load. Reuse stopped whole-installation backups containing
+registry, all databases/sidecars, encrypted vault and external paths, with
+separately held matching keys. Rehearse per-client and full recovery,
+upgrades/rollback and current access revocation after restore. A database export
+is not that recovery set. Distinguish AGPL/deployed-source obligations and fork
+branding from bank/Connect/market-data service rights. Connect terms updated
+2026-09-23 restrict unauthorized commercial use; counsel/vendor entitlement is
+not established by a subscription or client consent.
+[Operations](operations.md),
+[commercial and Czech/EU review questions](commercial-readiness.md).
 
-| Deliverable | Location |
-|---|---|
-| Baseline and validation limits | [baseline](baseline.md) |
-| Full authorized requirements | [brief](brief.md) |
-| Issue/chat/branch/PR state | [index](index.json), [workflow](workflow.md) |
-| Architecture and upstream strategy | architecture.md; architecture-validation.md (worker #2) |
-| Isolation decision record | isolation.md (worker #3) |
-| Permissions and threat model | permissions-threat-model.md (worker #3) |
-| Bank coverage and source matrix | banks.md (worker #4) |
-| Import pipeline and proposed MVP | imports.md (worker #4) |
-| Deployment and recovery | operations.md (worker #5) |
-| License, terms and legal questions | commercial-readiness.md (worker #5) |
-| Consolidated findings | findings.md (after worker review) |
-| Roadmap, backlog and business decisions | roadmap.md (after worker review) |
+**Confirmed user requirement:** the initial deployment proposal targets more
+than 50 clients. The pilot infrastructure is a single private server or VM.
+Hardware, concurrent users and portfolio sizes are unverified. A small technical
+isolation pilot is distinct from launch capacity. Automated provisioning,
+lifecycle operations, per-client recovery and measured capacity gates are
+required in the proposal; no capacity is claimed without tests.
 
-## Business decisions to resolve after consolidated review
+**Confirmed limitation:** this is an investigative source audit with limited
+diagnostic checks, not a passed penetration test, financial-calculation
+certification, load test, disaster-recovery drill or legal approval. Four
+launcher tests, 22 Python CI-script unit tests and seven isolated bank-helper
+checks passed in the documented environments; no complete runtime/security
+guarantee follows. Focused Vitest attempts never executed, and Node/pnpm
+differed from repository pins. Cargo/Docker were absent during specialist
+checks; separately authorized staging #7 later installed tools, but its
+application/recovery evidence remains separate and pending. Source 3.9.2 is 38
+commits beyond release v3.9.1 and cannot be equated with a published container.
+No product implementation, merge or production deployment occurred in this
+audit.
 
-1. Pilot client count and infrastructure; choose separate instances versus implementing ownership on profiles.
-2. Whether advisors may receive optional read-only access, what it includes, and how clients authorize/revoke it.
-3. First actual bank, product and account tier: payment transactions, investment transactions, or holdings.
-4. Availability of sanitized representative exports through a private intake process; never attach real statements publicly.
-5. Whether any portfolio data may go to external AI, broker/device sync, market-data or aggregation services.
-6. Recovery objectives, offboarding/retention policy, branding and qualified Czech/EU legal review.
+## Ten requested deliverables
 
-These are selection questions, not authorization inferred from silence. No unattended monitor is configured; synchronization occurs at observed coordination checkpoints.
+| Deliverable                                                      | Reviewable artifact                                                                                   |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1. Plain-English executive recommendation                        | This document                                                                                         |
+| 2. Architecture map and upstream strategy                        | [architecture.md](architecture.md), [architecture-validation.md](architecture-validation.md)          |
+| 3. Severity, paths, evidence, method, impact and action register | [findings.md](findings.md)                                                                            |
+| 4. A/B/C isolation decision                                      | [isolation.md](isolation.md), [roadmap decision](roadmap.md#decision-record-awaiting-human-selection) |
+| 5. Bank-by-bank export/investment/connectivity matrix            | [banks.md](banks.md), [imports.md](imports.md)                                                        |
+| 6. Client/advisor/operator permission matrix and threat model    | [permissions-threat-model.md](permissions-threat-model.md)                                            |
+| 7. Deployment and recovery proposal                              | [operations.md](operations.md)                                                                        |
+| 8. Phased roadmap, dependencies, effort/confidence and gates     | [roadmap.md](roadmap.md)                                                                              |
+| 9. Created issue backlog linked to parent #1                     | [roadmap issue map](roadmap.md#deduplicated-issue-backlog): #13–#28, Not Started/pending direction    |
+| 10. Business decisions                                           | [roadmap decisions](roadmap.md#business-decisions-needed)                                             |
+
+## Evidence, ownership and review status
+
+- [brief.md](brief.md) is the preserved original authorized request.
+  Later >50/single-VM steering, command-center handoff and status addendum are
+  in [workflow.md](workflow.md); historical assumptions are not current
+  requirements.
+- [baseline.md](baseline.md) distinguishes source/release/image and exact
+  executed versus unrun checks. [coordination/review.md](coordination/review.md)
+  records reviewed specialist PR revisions, independent evidence checks,
+  limitations and reconciliation.
+- [index.json](index.json) maps parent, specialists, synthesis, staging and
+  proposal backlog. **Wealth Command Center** owns
+  issues/dispatch/status/business choices; synthesis #8 owns technical
+  review/files. No continuous monitor is configured.
+- Specialist documentation is copied only from reviewed exact revisions into PR
+  #6. Their independent PRs remain open; no GitHub PR or main merge occurred.
+  Acceptance review is pending, so all audit issues/chats stay In Progress.
+- Separately authorized localhost staging
+  [#7](https://github.com/felipebaez/wealthfolio/issues/7),
+  [PR #12](https://github.com/felipebaez/wealthfolio/pull/12), is not production
+  authorization or evidence that its checks passed. The audit never modifies its
+  worktree.
+
+**Architecture impact:** documentation and audit-only reproductions.
+Runtime/network/provider settings, synchronous/background timing,
+persistence/events, business-logic ownership, failures/retries and user-edit
+precedence remain unchanged. The future boundary changes and their required
+invariants are explicit in the issue briefs. No proposed fix is verified by
+documentation acceptance.

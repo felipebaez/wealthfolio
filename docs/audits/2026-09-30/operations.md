@@ -1,0 +1,632 @@
+# Self-hosted operations audit
+
+Date: 2026-09-30. Assignment:
+[issue #5](https://github.com/felipebaez/wealthfolio/issues/5), part of
+[audit #1](https://github.com/felipebaez/wealthfolio/issues/1). Investigative,
+documentation-only work; every implementation proposal awaits human direction.
+Synthetic checks only.
+
+## Executive recommendation
+
+**Accepted requirement:** more than 50 clients on one private server or VM;
+hardware, simultaneous users and portfolio sizes are unspecified. **Inferred
+recommendation:** validate a few separately provisioned client instances first,
+each with a separate hostname, installation root, vault and master key, then
+compare an automated fleet of those instances against a single profile
+deployment with explicit identity ownership. Reuse the existing Axum server,
+SQLite, SQLCipher, file vault, offline restore commands and reverse-proxy
+overlay. This reduces shared application state and gives a practical per-client
+restore boundary while the identity/isolation audit resolves authorization. A
+small safety pilot is not production readiness for more than 50 clients. Sharing
+one VM does not establish privacy from its operator, host-compromise isolation
+or independent host availability. Do not admit real clients until isolation,
+recovery, provider rights and Czech/EU legal review gates pass.
+
+**Confirmed:** the existing installation supports multiple profiles with
+independent databases, but they share an installation registry, master key and
+namespaced file vault. It is not a ready-made business tenancy or advisor
+permission system. A single deployment with profiles has a larger maintenance
+and failure domain. Shared tenant-aware storage would add substantially more
+change; this audit found no operational need that justifies replacing SQLite
+before measuring the existing design. See
+[security audit #3](https://github.com/felipebaez/wealthfolio/issues/3) for the
+authorization decision, rather than interpreting this operational recommendation
+as its approval.
+
+**Inferred launch gates:** immutable release identification; HTTPS-only ingress
+with no backend bypass; tested cross-client access denials; recoverable
+whole-installation backups with separately held keys; token revocation after
+restore; capacity measurements; non-financial operational logs; an
+offboarding/retention policy; and approved external-service contracts.
+[Commercial readiness](commercial-readiness.md) identifies a confirmed Connect
+commercial-use restriction and provider licensing constraints.
+
+## Scope, baseline and architecture impact
+
+- **Confirmed locally:** worktree
+  `/Users/felipebaez/Development/Wealthfolio-audits/operations`, branch
+  `audit/5-operations`, source HEAD and authenticated fork `main` both
+  `6ee11b1278eff8b5123280e740fa6983b501952b`. All source links below are pinned
+  to that revision.
+- **Confirmed source:** root manifest version `3.9.2`, Node requirement `24`,
+  pnpm requirement `10.33.4`, Rust toolchain `1.98.1` ([E01], [E02]).
+- **Coordination evidence, not independently reproduced here:** fork/upstream
+  baseline divergence 0/0; latest upstream published release `v3.9.1`, dated
+  2026-09-27, at `392f272c5b15a4af45dc2ff71dcbec474f47112a`. The fork's
+  authenticated release lookup reported no release and its `v3.9.1...main`
+  comparison returned 404. These are fork metadata limitations, not evidence
+  that the upstream release does not exist.
+- **Unknown:** currently published container digest, which commit each registry
+  tag contains, signatures/provenance, image vulnerability status and runtime
+  behavior of either architecture. Neither source `3.9.2` nor a release tag
+  proves published image contents.
+
+**Architecture impact:** documentation only. No changes to network
+calls/provider settings, sync/background timing, persistence/events,
+business-logic ownership, failures/retries, user-edit precedence, authentication
+or permissions. Proposed gates change deployment/operating practice; optional
+code changes explicitly identify their boundaries below. No migration, new
+worker, retry mechanism or synchronization primitive is implemented.
+
+Severity: **High** = client launch gate or credible material data/availability
+risk; **Medium** = bounded operational risk requiring validation or procedure.
+**Confirmed** means direct source or executed check evidence; **Inferred** means
+reasoned impact/proposal; **Unknown** means no runtime, contractual or
+measurement evidence. Source-confirmed paths do not imply their Rust tests
+passed here.
+
+## Execution and storage map
+
+| Surface           | Confirmed execution path and operational implication                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup           | `main` loads `Config`, binds TCP, builds the profile router/services, then serves HTTP. A startup construction error is logged and propagated; there is no browser recovery screen. Bind success alone is insufficient readiness ([E03], [E04]).                                                                                                                                                            |
+| Profile admission | Installation session middleware precedes profile admission and profile commands. `WebProfiles::runtime` serializes initialization, builds the profile `AppState`, retains it in a map, then starts background workers. Connected profiles with saved refresh tokens are opened at startup even without a browser ([E05]). Identity-to-client ownership remains the security lane's scope.                   |
+| Persistent layout | Installation root selected by `WF_DATA_DIR`/database parent contains `profiles.json`, `profiles.json.bak`, `profiles.lock`, profiles and default encrypted `secrets.json`. New profiles use `profiles/<uuid>/app.db`; adopted legacy database/addon paths can differ. The vault namespaces secrets rather than providing a separate vault file/key for each profile ([E05], [E06], [E07]).                  |
+| Database          | Every runtime owns its database lock, applies pending embedded migrations with a pre-migration snapshot for existing data, creates an r2d2 pool capped at eight connections and a serialized write actor. SQLite uses WAL, foreign keys, busy timeouts and `synchronous=NORMAL`. Ownership persists through pooled connections ([E08], [E09], [E10]).                                                       |
+| Jobs and events   | Existing domain event worker/write actor and per-profile services handle recalculation. Broker scheduling uses a 60-second startup delay and four-hour intervals; market scheduling uses two minutes then six hours. Device sync is feature/config/token dependent. These jobs already exist; adding a second scheduler is unnecessary ([E11], [E04]).                                                      |
+| Exports           | CSV/JSON-style data exports read profile services and materialize records/output in memory; they are not a full GDPR access package. Manual managed snapshots use SQLCipher export and integrity validation. Portable exports stage files, bind jobs to browser sessions, stream downloads, permit one active export/two outstanding files per profile and expire jobs lazily ([E12], [E13], [E14]).        |
+| Restore           | Offline CLI resolves registered profile/UUID and key, holds registry/database ownership, validates an existing readable destination, stages/imports, replaces with rollback support and preserves destination encryption policy. It starts no listener/OIDC discovery/workers. Portable import resets sync state and requires reconnect; it retains backup configuration and MCP grant rows ([E15], [E16]). |
+| Profile deletion  | Confirmed name/proof creates a durable deletion record, revokes sessions/auth flows, waits for workers/writer/database ownership to end, removes namespaced secrets and owned paths, then updates registry. Removal is not secure media erasure or deletion of external services/operator backups ([E05], [E06]).                                                                                           |
+
+## Findings register
+
+### OPS-01 — High: mutable deployment identity and incomplete reproducibility
+
+**Confirmed:** `compose.yml` uses `wealthfolio/wealthfolio:latest`; Dockerfile
+base images (`node:24-alpine`, Rust tag, `tonistiigi/xx`, `alpine:3.19`) are
+tags rather than digests, and package installation invokes `pnpm@9.9.0` despite
+root `packageManager=pnpm@10.33.4`. Rust fetch/build uses `--locked`; JS install
+uses a frozen lockfile. CI builds native amd64/arm64 images, smoke-tests each,
+then publishes manifests from those tested images, which is useful existing
+infrastructure ([E01], [E02], [E17], [E18]). The pinned toolchain files are
+[.node-version][E24] and [rust-toolchain.toml][E25].
+
+**Verification:** read the literal image/build instructions and publication
+conditions. **Inferred impact:** a later pull/rebuild can select different
+artifacts or fail on package-manager policy; upstream tag publication is not
+this fork's release evidence. The pnpm mismatch is confirmed, but build failure
+is **unknown**, not reproduced.
+
+**Proposed action:** maintain a deployment record mapping source SHA, release
+label, registry manifest and architecture digests, build arguments, lockfile
+hashes and tool versions; pin the promoted image digest and preserve the
+previous one. Reuse CI smoke tests; reconcile Docker pnpm with the root
+requirement before claiming reproducibility. Base-image/action digest pinning
+and SBOM/signature work are supply-chain hardening proposals, not proof of
+byte-identical builds. Do not infer bit reproducibility from lockfiles alone.
+
+### OPS-02 — High: HTTPS/proxy trust is an operator-enforced boundary
+
+**Confirmed:** Axum binds plain HTTP. Base Compose publishes 8088 without a host
+IP; proxy overlay clears host publishing with `!reset []`. No proxy/TLS service
+is provisioned there. `WF_COOKIE_SECURE=auto` takes the first
+`X-Forwarded-Proto` value without checking the peer; session cookies are
+`HttpOnly; SameSite=Lax; Path=/api`. CORS supports explicit credentialed origins
+and rejects authenticated wildcard configuration. Profile commands reject
+cross-site fetches and mismatched origins; protected portable exports have a
+custom header/origin/HTTPS check. Those checks are not a global CSRF mechanism
+for all mutation routes ([E03], [E05], [E13], [E17], [E19], [E26], [E27],
+[E31]).
+
+**Verification:** trace `should_secure_cookie`, `allowed_profile_origin`,
+`check_export_request`, router layers and Compose ports. **Inferred impact:**
+backend exposure bypasses proxy authentication/TLS; missing or untrusted headers
+can change cookie security; same-site sibling origins and routes with differing
+protections deserve adversarial browser testing. A working CSRF exploit is
+**unknown**. CORS is not evidence of CSRF protection or tenant authorization.
+
+**Proposed action:** provision one exact HTTPS origin per client instance for A,
+or one shared origin for B, with matching CORS/OIDC callbacks; redirect HTTP,
+set HSTS appropriate to the controlled domain, preserve public Host, overwrite
+forwarded headers at the trusted proxy, force `WF_COOKIE_SECURE=always`, and
+attach the backend only to a private proxy network. The supplied Compose
+environment list does not forward `WF_COOKIE_SECURE`; explicitly map it in the
+selected deployment overlay instead of assuming an env-file value reaches the
+process. Retain backend auth instead of relying on an unvalidated proxy-only
+scheme. Test the actual Compose version's `!reset` support, firewall exposure,
+cookie refresh/logout, OIDC redirects, profile startup, CSRF-sensitive
+mutations, SSE and AI streaming with buffering disabled. Do not broaden
+trusted-header parsing before establishing the concrete deployment requirement.
+
+### OPS-03 — High: a database export is not an installation recovery set
+
+**Confirmed:** managed/portable snapshots operate on one profile database.
+Registry writes are durable atomic writes, whereas the vault is a distinct
+mutable file. No database snapshot atomically captures the database, registry,
+deletion records and vault together. Existing self-host docs correctly instruct
+a stopped-service complete-directory backup plus external configured paths and
+separately retained master key ([E06], [E07], [E12], [E16], [E20]).
+
+**Verification:** compare snapshot/portable code with registry paths and
+documented stopped backup procedure. **Inferred impact:** independent copies can
+disagree about profile/password/deletion state; database-only backups cannot
+recover profile metadata or credentials. Copying only a live `.db` risks
+omitting committed WAL writes; a checkpoint followed by an uncontrolled copy is
+not an installation consistency protocol. SQLite's
+[backup guidance](https://www.sqlite.org/backup.html) and
+[WAL documentation](https://www.sqlite.org/wal.html), accessed 2026-09-30,
+describe the underlying file/snapshot constraints.
+
+**Proposed action:** reuse stopped-service whole-installation backup as the
+first consistent recovery point; preserve DB/WAL/SHM sets and all
+registry/vault/config paths; inventory and checksum the archive; encrypt it
+off-host; keep key escrow separately protected; test restoration. No new live
+cross-store coordinator is justified for the pilot. A future zero-downtime
+requirement would need an explicit failure model and design because current
+per-database snapshots cannot give cross-store atomicity.
+
+### OPS-04 — High: vault writes can fail without crash-atomic recovery
+
+**Confirmed:** `FileSecretStore` uses a process-local mutex, reads the entire
+map, encrypts with ChaCha20-Poly1305, then calls `fs::write` directly on the
+destination. There is no temporary-write/rename/fsync protocol in that
+persistence method. Empty vault files read as empty stores; malformed/truncated
+JSON errors. Existing docs explicitly state one process per vault and
+non-crash-atomic writes ([E07], [E28]).
+
+**Verification:** inspect `with_store`, `load_store_locked` and
+`persist_store_locked`; compare with registry `atomic_write`. **Inferred
+impact:** interruption/disk failure can lose all credentials/profile lock
+records in the shared vault; multiple writers can overwrite changes. A real
+crash/disk-full reproduction is **unknown** here.
+
+**Proposed action:** require recoverable vault backups, one process, protected
+key input and adequate free space before pilot. Atomic vault persistence is
+**optional resilience pending explicit agreement**, not an unconditional launch
+implementation requirement: it would prevent partial writes/lost credentials
+that DB snapshots and an in-memory mutex cannot prevent. It must preserve
+administrator ownership/mode, separately bind-mounted files, old vault format
+and raw-to-derived key migration; existing deployment fixtures specifically
+exercise those cases. Do not blindly transplant registry rename logic across
+these different filesystem contracts.
+
+### OPS-05 — High: restore can reintroduce old authorization state
+
+**Confirmed:** portable restore resets sync tables and sets
+`restore_reconnect_required`, while deliberately preserving
+`personal_access_tokens`, grant scopes/revocation fields, broker associations,
+preferences and MCP audit history. MCP verifies token hashes and stored
+revocation/expiry; token hashing is SHA-256, not bound to the destination master
+key. Whole-installation restore can also reinstate old profile/password/identity
+state ([E16], [E21], [E30]).
+
+**Verification:** read `reset_restored_sync_state`,
+`backups_preserve_configuration_and_grants_and_only_reset_restore_sync_state`,
+PAT hash/authentication and offline restore. **Inferred impact:** a backup taken
+before token revocation can authorize that token again if the restored
+profile/MCP endpoint is enabled and reachable. Moving a portable backup to a new
+installation does not itself eliminate that grant. No live token-revival test
+ran.
+
+**Proposed action:** keep external access, MCP and sync blocked during recovery;
+reconcile current authorization/offboarding state with the recovery date;
+revoke/reissue restored PATs before exposure and verify expired/revoked
+sessions, profile grants, IdP access and bank/device consents. Treat permission
+history separately from financial point-in-time recovery. A selective
+restore-policy change requires agreement: silently dropping backup grants would
+change documented behavior.
+
+### OPS-06 — Medium: client capacity and shared resource containment are unmeasured
+
+**Confirmed:** cached opened runtimes have services, pool up to eight
+connections, writer/event workers/caches and schedulers; locking a browser
+profile does not evict its runtime. The runtime map removes entries for
+deletion; startup opens connected profiles. Per-profile export quotas do not
+create an installation-wide cap. Data exports materialize all activity
+records/output; portable files have a 2-GiB file limit, not a process/disk
+budget. Compose proposes 512-MiB memory limit/128-MiB reservation and 64-MiB
+`/tmp` ([E05], [E08], [E11], [E13], [E14], [E17], [E20]).
+
+**Verification:** trace runtime retention, pool construction, scheduler calls
+and export allocation. **Inferred impact:** memory/connections/jobs/outbound
+rate limits scale with opened profiles; a heavy calculation/import/export can
+affect all clients in one process. Synchronized startup schedules may produce
+provider bursts. Actual RSS, acceptable client count, OOM thresholds, CPU/disk
+budgets and enforced Compose resource semantics are **unknown**.
+
+**Proposed action:** benchmark representative synthetic portfolios at 1/5/20/50
+opened profiles and repeat worst-case import/recalc/export and startup sync;
+record RSS, CPU, disk/IO, WAL growth, pool waits, queue latency, 429s and
+request tails. Pilot one client per separately limited instance and scale based
+on measurements. Do not add cache eviction, shared worker orchestration or a new
+database until results identify the bottleneck. Existing provider registry
+limiters do not establish aggregate quota sharing across separate
+runtimes/instances/API keys.
+
+**Proposed capacity-validation scenarios:** 50 is a comparison point, not the
+accepted requirement's upper boundary. Test at least 60 provisioned clients and
+a growth scenario of 100 on the chosen VM for both candidate topologies, with
+simultaneous activity based on a business-selected scenario. The audit chose
+these test points; the human specified more than 50, not exact counts of 60/100.
+Do not extrapolate a one-profile benchmark or Compose's 512M per-service cap
+into a server size recommendation.
+
+### OPS-07 — Medium: liveness is presented as readiness; observability is partial
+
+**Confirmed:** `/api/v1/healthz` and `/api/v1/readyz` both return the literal
+`ok`; Compose probes healthz. The protected portfolio-health routes provide
+financial-data checks, not operational probes. Request trace spans record
+method/path, responses/latency and request-ID layers exist; text/JSON logs and
+`RUST_LOG` are available. There is no readiness DB/disk/worker test in those
+endpoints. `main` has no explicit graceful-shutdown signal/drain wiring, though
+per-profile deletion/startup failure explicitly stops/joins work ([E03], [E04],
+[E05], [E19]).
+
+**Verification:** inspect exact handlers, serving call and trace configuration.
+**Inferred impact:** healthy HTTP can mask unavailable credentials, a later
+profile initialization failure, full disk or stale background work; proxy peers
+share each login-rate-limit bucket (default `PeerIpKeyExtractor`), potentially
+affecting simultaneous users. No live outage/load test ran.
+[tower_governor 0.8.0 documentation](https://docs.rs/tower_governor/0.8.0/tower_governor/governor/struct.GovernorConfigBuilder.html),
+accessed 2026-09-30, confirms the default peer-IP behavior; source config
+replenishes one token per 12 seconds with burst five.
+
+**Proposed action:** initially monitor external TLS/HTTP availability,
+certificate expiry, container restarts/OOM, disk/WAL growth and backup
+age/restore results; add a synthetic authenticated non-financial canary. Reuse
+trace/request IDs and existing job events for safe counters. A readiness
+endpoint extension should test concrete local prerequisites without initiating
+providers or disclosing profiles; optional graceful drain should reuse
+workers/writer lifecycle. Rate-limit changes require trusted-proxy tests, not
+unconditional trust of client-supplied IP headers.
+
+### OPS-08 — High when debug logs are enabled: logs do contain financial fields
+
+**Confirmed:** core activity quote creation debug-logs asset ID, activity date
+and unit price; request tracing logs concrete URL paths and many jobs propagate
+provider/error strings. Default log filter is `info`, so that specific debug
+statement is not emitted by default. MCP has argument-sanitization hooks and a
+database audit sink, but this does not prove all logging is free of sensitive
+fields ([E04], [E19], [E22], [E23]).
+
+**Verification:** inspect `create_quote_from_activity`'s success branch and
+logging configuration. **Inferred impact:** globally enabling debug during
+support exposes transaction-related price/date/asset information; raw
+errors/paths may disclose identifiers. Secret or financial leakage at default
+info across all code is **unknown**, not certified absent.
+
+**Proposed action:** before client use, exercise synthetic sentinel accounts,
+imports, provider failures, AI/MCP calls and restore through the deployed log
+path; remove financial fields and redact errors at owning boundaries if
+confirmed. Configure proxy/app logging with no bodies, cookies, authorization,
+query strings or statement uploads; avoid full URLs in error messages; keep
+pseudonymous operational IDs with restricted access/retention. Do not use real
+client data to validate redaction or turn global debug on in production.
+
+### OPS-09 — High: offboarding needs an operational policy beyond profile deletion
+
+**Confirmed:** profile deletion removes owned local files/secrets and updates
+registry, but does not purge independently retained operator/off-host backups,
+downloads, proxy logs or provider/IdP state. Existing snapshots/recovery
+archives have no automatic retention policy. Portable exports preserve
+configuration, AI/audit data and PAT rows; targeted exports cover only selected
+financial objects ([E05], [E06], [E14], [E16], [E20]).
+
+**Verification:** compare `begin_delete`/`finish_delete`, exports and documented
+backup retention. **Inferred impact:** a departing client's data or revoked
+access can survive or reappear after restore; deleting the local profile is not
+a completed GDPR erasure or provider-consent revocation workflow. Statutory
+advisory record retention and erasure exceptions are legal questions, not
+code-derived time limits.
+
+**Proposed action:** define lawful retention/legal holds, access
+suspension/revocation, client export format, deletion evidence, backup expiry
+and restore-time deletion reconciliation. For one instance/client, destroy only
+the approved instance after required export/retention steps and independently
+expire its encrypted archives/keys according to policy. For profiles, never
+restore an old shared registry over another live client's installation as a
+shortcut. External bank/Connect/IdP deletion or consent revocation requires the
+applicable approved procedures.
+
+## Deployment proposal (not executed)
+
+1. **Choose pilot boundary:** separate client instance and hostname, unique
+   installation volume and master key, restricted operator access. Advisor
+   access requires a separately approved permission model; sharing a client
+   password is not that model. MFA can be enforced by the selected IdP, but IdP
+   admission alone must not be confused with application ownership. Avoid public
+   discovery/listing of other client profiles.
+2. **Select an artifact:** audit the intended released revision, record its
+   architecture-specific digest, reuse native CI encryption smoke tests, then
+   promote the same artifact through synthetic staging. Source main `3.9.2` is
+   not automatically the recommended deployed release. Configure build-time
+   Connect auth arguments only after rights/privacy decisions; ordinary
+   self-hosting must not be represented as permission to resell Connect.
+3. **Provision one writer:** local persistent disk with reliable
+   locks/rename/sync; no NFS/shared network volume, multi-replica rollout or
+   shared-vault writer without validation. SQLite WAL requires same-host
+   shared-memory semantics ([SQLite WAL](https://www.sqlite.org/wal.html),
+   accessed 2026-09-30). Use the existing
+   read-only/non-root/no-new-privileges/tmpfs hardening and verify it on the
+   chosen host; resource limits need measured adjustment.
+4. **Configure secrets/encryption:** mount `WF_SECRET_KEY_FILE` read-only with
+   restricted host permissions and keep `WF_SECRET_KEY` empty; reuse the
+   existing key when changing input. `WF_SECRET_FILE` is the encrypted vault
+   path, not the key. Configure `WF_DB_REQUIRE_ENCRYPTION=1` for new
+   installations; it is a startup requirement, not an automatic conversion of
+   existing plaintext databases. Existing data requires offline `db encrypt`
+   with the intended profile selector. Back up before conversion. Loss of the
+   master key can make raw encrypted DB/vault backups unusable; profile recovery
+   codes do not recover encryption keys.
+5. **Configure ingress:** exact public CORS origin, backend auth/IdP allowlist,
+   secure cookies, trusted proxy that overwrites forwarded headers, TLS and no
+   direct 8088 publishing. Reuse `compose.proxy.yml`; attach an actual proxy
+   network explicitly.
+   [Docker services](https://docs.docker.com/reference/compose-file/services/),
+   accessed 2026-09-30, documents all-interface binding when a host IP is
+   absent;
+   [digest pull](https://docs.docker.com/reference/cli/docker/image/pull/),
+   accessed 2026-09-30, supports immutable artifact selection. Digest pinning
+   does not certify security.
+6. **Keep optional integrations off until accepted:** Connect/device/broker
+   sync, AI, MCP and addons each require separate identity, privacy and terms
+   assessment. Docker default Rust features include Connect/device sync ([E29]);
+   omitting runtime credentials/build configuration is not the same as removing
+   compiled code. Verify disabled providers/features produce no requests with
+   controlled staging egress; not tested here.
+7. **Gate access:** prove client isolation, recovery and capacity; record
+   operator responsibilities and support boundaries. Keep staging DNS, volumes,
+   master keys, IdP clients, accounts and provider credentials distinct. No real
+   financial data or production secrets in staging.
+
+### More than 50 clients on a single VM
+
+| Production candidate                                         | Operational advantage                                                                                                                      | Additional gate / cost                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A: one process/instance per client, sharing VM               | Existing app remains close to upstream; each client gets distinct DB/vault/key/hostname and independent application restore/upgrade window | Automate provisioning, volume/key inventory, proxy routing, IdP admission, health checks, backup expiry, suspend/delete and artifact rollout. Reuse a reviewed deployment template rather than creating an app control plane. The supplied fixed `container_name: wealthfolio`, port and volume naming need per-instance deployment configuration; blindly reusing them collides or shares state. Repeated processes/services may cost more CPU/RAM/IO; measurement required. |
+| B: one process, database-per-profile with explicit ownership | Central deployment/configuration and fewer repeated server processes; existing profiles/DBs reusable                                       | Identity-to-profile and advisor/backend permission work must pass #3 isolation tests before clients enter. Shared registry/vault/process means global maintenance, backup coordination, aggregate export limits and noisy-neighbor effects; all opened runtimes still have per-profile pools/workers. A single process is not proven cheaper enough to justify its authorization effort.                                                                                      |
+| C: shared tenant-aware storage                               | Potential later aggregate administration/querying                                                                                          | No demonstrated operational bottleneck requires this new storage/schema boundary. Defer until A/B measurements and actual tenancy requirements prove existing mechanisms insufficient.                                                                                                                                                                                                                                                                                        |
+
+**Inferred decision:** begin synthetic safety validation with A, then require
+quantitative A/B results and implementation estimates before choosing
+the >50-client production topology. A manually managed 51-instance fleet is not
+an adequate lifecycle proposal; B is not safe merely because it has profile
+passwords. A and B both remain a single-host failure domain. Off-host encrypted
+recovery sets and a fresh-host replacement drill are required; a backup on
+another folder/volume of the same VM does not protect against loss of that VM.
+No distributed cluster, database replacement or new synchronization mechanism is
+proposed.
+
+Record provisioned versus concurrently active clients, representative/max
+activities and years of history, import file sizes, active
+integrations/provider-key quotas, intended backup windows and acceptable
+noisy-neighbor delay. Measure 1/5/20/50/60/100-client configurations:
+idle/startup RSS, all-runtime-open cost, simultaneous
+login/import/recalc/export, job/provider bursts, backup duration/size, disk
+free-space peaks and whole-fleet recovery time. Define pass thresholds with the
+business before claiming capacity. Test one client's restore/offboarding without
+another client's data change; for B explicitly measure shared downtime. Record
+how many clients can be restored per hour and prioritize a >50-client disaster
+recovery queue against the chosen RTO. Hardware recommendation, maximum
+supported count and achievable RTO remain **unknown**.
+
+## Backup, restore and upgrade runbook proposal
+
+### Recovery inventory
+
+| Recovery object           | Required contents/key                                                                                                                                                                                                                                                                          | Limitation                                                                                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Whole-installation backup | All stopped installation files including registry copies/deletion records, profile roots, legacy DB/WAL/SHM sets, encrypted vault, backups/recovery archives and any configured external DB/vault/addon paths; non-secret config and exact image record; matching master key escrow separately | Recover together at a known point. Shared installation recovery can rewind every client. Host snapshots are not proven consistent while running.                                                                   |
+| Internal snapshot         | One profile DB and matching encryption key/master + profile UUID where derived                                                                                                                                                                                                                 | Faithful encryption copy; no registry/vault/host config. Encryption-disabled snapshots are plaintext.                                                                                                              |
+| Protected portable export | `.wfbackup`, independent backup password, metadata/checksum                                                                                                                                                                                                                                    | Can transfer across installations; no source vault/key/registry. Preserves backup grant rows; requires reconciliation/reconnect. Unprotected portable `.db` export needs explicit handling as sensitive plaintext. |
+| Client data export        | Selected accounts, activities, holdings, goals or portfolio history                                                                                                                                                                                                                            | Not a full database restore or complete personal-data access package. Archive/excluded objects need review.                                                                                                        |
+
+**Inferred initial service target for business selection, not a measured
+promise:** daily off-host installation backup gives at most a 24-hour
+scheduled-backup loss window only if every backup succeeds; propose an
+eight-hour restore objective until a drill measures it. More frequent backups or
+shorter downtime should be agreed after client-count/uptime needs are known.
+Backup success alone does not prove these objectives; failed/stale backups
+worsen them.
+
+**Consistent backup:** schedule maintenance; block admission and stop
+service/supervisors/writers; ensure no second instance/SQLite tool; archive the
+complete file set without omitting sidecars or external paths; record
+timestamp/SHA/digest/profile manifest/checksums and backup encryption/key
+reference; transfer to separately controlled off-host storage; restart the same
+artifact and verify synthetic canary. Existing stopped-service tar procedure is
+reusable. Never upload master key and encrypted archive to the same unprotected
+location. Test permissions and readability without exposing data in logs.
+
+**Disaster recovery:** preserve failed installation and reported recovery
+snapshots; stop restart loops; verify chosen key/artifact/policy/config; restore
+a consistent whole set to a new isolated volume before exposing it; start only
+one writer. If registry fails, its valid `.bak` may recover startup; if both are
+unusable, restore matching metadata rather than inventing UUIDs/resetting files.
+If only portable backup exists, initialize a new isolated destination once with
+intended policy, stop it, then use offline restore; the command requires an
+existing readable, nonempty destination. Do not copy `.wfbackup` over `.db`.
+Verify portfolio totals/counts/provenance, profile lock/recovery, registry and
+credentials, then reconcile token/access/offboarding and sync before admission
+([E15], [E20]).
+
+**Per-client restore:** for the pilot, restore that client's separate
+installation with others unaffected. In a shared-profile deployment, select the
+registered UUID explicitly
+(`wealthfolio-server db restore <backup> --profile <uuid>`), first run
+validation without `--yes`, and confirm only after reviewing the destination
+summary; password via standard input, no shell tracing. The source CLI can
+select one profile, but registry ownership means the shared server must be
+stopped. Never restore the entire old shared vault/registry to recover one
+client without separately reconciling other clients' newer data. Portable
+restore does not restore a lost vault; restoring an earlier DB and current vault
+may leave associations inconsistent, so verify and reconnect. Cross-installation
+keys and grants need explicit treatment.
+
+**Upgrade:** record old/new digests, schema versions and release source; review
+migrations/provider terms; restore a recent synthetic representative backup in
+staging; exercise all active profiles (not just startup default), imports,
+exports, background sync/recalculation and proxy flows; reserve disk for
+migration/export/recovery copies; take a new stopped consistent backup; stop old
+process, promote tested artifact, verify all profiles, then reopen access.
+Pending migrations run when each profile runtime opens, so unused profiles can
+defer upgrade failures. Reuse pre-migration snapshots, but they are not
+whole-installation rollback. Keep the old artifact and backup until the
+business-approved rollback window ends.
+
+**Rollback:** stop new process and preserve new files; restore the complete
+pre-upgrade set with matching old digest/config/key to a separate recovery
+destination; verify before cutover. Running an older binary against a migrated
+DB or invoking migration `down.sql` is not a validated downgrade strategy.
+Review new writes since upgrade: restoring an old point discards them unless
+explicitly reconciled. Do not auto-rollback while writers are active.
+
+**Offboarding:** suspend IdP/app/agent/advisor access first; revoke
+bank/device/provider sessions according to contracts; deliver authorized export
+securely; apply legal hold/retention decision; delete approved local
+instance/profile using established mechanisms; expire replicas/backups/downloads
+and keys on the approved schedule; record pseudonymous completion proof and
+restore-time exclusion instruction. These are proposed steps, not actions
+performed in this audit.
+
+## Synthetic staging and acceptance matrix
+
+| Gate                       | Verification required before client pilot                                                                                                                                                                                                                                                                                          | Current status                                                             |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Artifact/build             | Correct Node/pnpm/Rust, frozen/locked installs, web build and server check, native amd64/arm64 container encryption smoke; capture digests/config and compare promoted artifact                                                                                                                                                    | Not run: tooling/dependencies absent or mismatched; source-only inspection |
+| Ingress/auth               | HTTPS redirect/HSTS, no backend reachability from outside proxy, headers overwritten, secure cookie login/refresh/logout, OIDC allowlists/MFA, burst login behavior behind proxy, SSE/AI stream not buffered                                                                                                                       | Not run; no host/proxy/IdP supplied                                        |
+| Isolation                  | Two synthetic clients; forged profile/account/export/MCP identifiers, enumeration, stale/revoked grants, concurrent browsers, queued jobs/events; advisor access explicit                                                                                                                                                          | Security lane; operational recommendation is conditional                   |
+| Disabled/outbound services | Controlled egress/DNS log: disabled providers make zero calls; local-only paths have no new external dependency; provider failure remains isolated; enrichment preserves manual edits                                                                                                                                              | Not tested; do not infer from feature switches                             |
+| Backup/DR                  | Restore complete installation to empty host; missing/wrong key, damaged registry/vault, WAL-only commits, pre/post-revocation PATs, wrong-profile restore, policy mismatch, failed validation, low disk, permission errors; verify unaffected client                                                                               | Not run; tests exist but Rust unavailable                                  |
+| Upgrade/rollback           | Old released fixture through new migration chain, every profile opened; failure preserves recovery point; old artifact + old complete backup restores; quantify lost post-upgrade writes                                                                                                                                           | Not run                                                                    |
+| Resource/logging/fleet     | 60 provisioned clients minimum and 100-client growth scenario on chosen VM; A/B comparison with agreed concurrency/portfolio sizes, lifecycle/key inventory, concurrent exports/imports/recalc, 2-GiB boundary and small tmpfs/low disk, restart under queued work, log sentinel scan; capture latency/RSS and full-fleet recovery | Not run; no sizing claim                                                   |
+| Offboarding                | Suspend then delete; prove no API/MCP/event access, no cross-client damage; audit all retention locations; restore old backup and reconcile deleted/revoked client                                                                                                                                                                 | Not run; retention/legal policy undecided                                  |
+
+## Proposed backlog for orchestration
+
+Estimates are person-days for a developer/operator with the required
+environment, not commitments; external legal/contract wait times excluded. All
+entries are proposals, not implementation issues or approved changes.
+
+| Key / priority                | Scope, reuse and required boundary                                                                                                                                                  | Dependencies                                                       | Effort / confidence                       | Acceptance and validation                                                                                                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OPS-B1 / pilot and fleet gate | Document/provision isolated-instance synthetic staging plus >50-client repeatable fleet lifecycle; reuse deployment templates/Compose/proxy/SQLite; change deployment topology only | Isolation direction from #3; chosen single VM/DNS/IdP/hardware     | 5–10 days / medium                        | Unique key/vault/volume/hostname per client; collision-free naming/routing; create/suspend/recover/offboard from inventory; actual external port scan and two-client denial matrix; no production data |
+| OPS-B2 / pilot gate           | Release manifest and Docker package-manager alignment; reuse native publication/smoke workflow; artifact/build boundary                                                             | B1, selected revision, CI/registry rights                          | 2–4 days / high on scope, medium on build | Correct package manager, locked installs and both architecture smokes; record image/source mapping; promote exact digest, prove previous artifact recoverable                                          |
+| OPS-B3 / pilot and fleet gate | Consistent backup/DR/rollback/offboarding procedures and >50-client recovery inventory/queue; reuse stopped backups/offline profile restore; no new persistence mechanism           | B1/B2; RPO/RTO/retention choice                                    | 5–10 days / medium                        | Complete fresh-host/fleet and individual-client drill; wrong key/profile/registry/WAL cases; restored token reconciliation; measured per-client/fleet RPO/RTO; unchanged other client                  |
+| OPS-B4 / pilot gate           | Logs/redaction and safe monitoring; reuse JSON trace/events; only add readiness checks for observed local failures                                                                  | B1; support retention choice                                       | 2–5 days / medium                         | Synthetic financial/secret sentinels absent from app/proxy/support logs; disk/backup-age/outage alarms; readiness does not call disabled providers or expose profile metadata                          |
+| OPS-B5 / >50-client gate      | A/B capacity/load and proxy auth-rate testing on chosen single VM; reuse current pools/queues/export quotas; defer architecture until measurements                                  | B1/B2; chosen hardware, concurrency and portfolio/growth scenarios | 5–8 days / medium                         | 1/5/20/50/60/100-client report, worst-case export/recalc and fleet recovery; enforced aggregate memory/disk limits; provider key quotas; topology/hardware recommendation from measurements            |
+| OPS-B6 / decision-dependent   | Crash-atomic vault resilience; existing direct writes cannot prevent partial vault corruption; reuse SecretStore and deployment fixtures, avoid new DB                              | B3 evidence, explicit human agreement on filesystem compatibility  | 3–7 days / medium                         | Interruption/low-disk recovery; administrator ownership, modes and file bind mounts preserved; format/key migration compatibility; no multi-writer false guarantee                                     |
+| OPS-B7 / decision-dependent   | Restore-time authorization policy/reconciliation; reuse PAT revocation and offline restore; permission precedence changes only by agreement                                         | #3 permission model, B3, retention policy                          | 2–5 days / medium                         | Old backup cannot silently re-enable revoked/suspended access under chosen policy; financial restore unaffected; regression tests across old/new installation and MCP off/on                           |
+| OPS-B8 / later only           | Graceful service stop/aggregate export budget or runtime eviction, only if B5 proves need; reuse worker/writer lifecycle                                                            | B5 + explicit uptime/capacity requirement                          | 3–8 days / low until measured             | Concrete crash/OOM/burst failure reproduced, change prevents it; ownership held through drain, no lost writes/events or cross-profile effects                                                          |
+
+## Business decisions and limits
+
+Accepted target: more than 50 clients on one private server/VM. Decide hardware,
+concurrency, portfolio size and growth; acceptable scheduled downtime and
+per-client/fleet RPO/RTO; trusted infrastructure/backup operators and residency;
+initial isolation/advisor access model; hostname/IdP/MFA/recovery requirements;
+provider/Connect/AI/addon policy; retention/legal holds and client exports;
+brand/source publication and support promise. No answer is required to finish
+this investigative document; these decisions gate later implementation.
+
+**Executed in this worktree:** authenticated fork HEAD check; source tracing;
+`node --test scripts/tauri.test.mjs` passed **4** tests;
+`python3 -m unittest discover -s .github/scripts -p 'test_*.py'` passed **22**
+tests. The Python suite prints a portable-export PASS from a mocked script unit
+test: it is **not** live container encryption evidence. Documentation paths,
+pinned source references and diff were checked before PR submission.
+
+**Not run:** dependency installation, frontend type/lint/build/E2E, Cargo
+tests/fmt/Clippy/runtime checks, Docker build/smoke/Compose config, live
+network/IdP/CSRF isolation checks, capacity/restore/upgrade drills,
+SBOM/license/CVE scanning. Cargo and Docker are absent from PATH; Node is
+26.10.0 and pnpm 11.19.0, differing from requested versions; no application
+dependency tree or broad system install was introduced. Standalone pinned
+Prettier 3.8.1 was fetched in the npm cache to format/check these Markdown/JSON
+files with repository settings; its Tailwind plugin is irrelevant to these file
+types. Installed pnpm warns that root `pnpm.overrides` is ignored, another
+reason not to claim this environment reproduces the supported dependency graph.
+Application checks are unnecessary for documentation-only edits, but runtime
+guarantees remain unverified. Tests present in source are evidence of intended
+safeguards, not executed guarantees here.
+
+## Pinned source evidence
+
+The numbered evidence links in each finding resolve to files at the audited SHA.
+Key operating references are [server config][E31], [HTTP/authentication][E26],
+[profile lifecycle][E05], [registry][E06], [vault][E07],
+[database/snapshots][E08], [portable restore][E16], [deployment][E17], [proxy
+overlay][E27] and [existing backup guide][E20].
+
+[E01]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/package.json
+[E02]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/Dockerfile
+[E03]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/main.rs
+[E04]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/main_lib.rs
+[E05]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs
+[E06]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs
+[E07]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/secrets/mod.rs
+[E08]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/storage-sqlite/src/db/mod.rs
+[E09]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/storage-sqlite/src/db/ownership.rs
+[E10]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/storage-sqlite/src/db/write_actor.rs
+[E11]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/scheduler.rs
+[E12]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/storage-sqlite/src/db/snapshots.rs
+[E13]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api/portable_backups.rs
+[E14]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api/data_exports.rs
+[E15]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/database_restore.rs
+[E16]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/storage-sqlite/src/db/portable.rs
+[E17]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/compose.yml
+[E18]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/.github/workflows/docker-publish.yml
+[E19]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api.rs
+[E20]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/docs/self-host/backups.md
+[E21]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/mcp/auth.rs
+[E22]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/activities/activities_service.rs#L2194
+[E23]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/mcp/audit_sink.rs
+[E24]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/.node-version
+[E25]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/rust-toolchain.toml
+[E26]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs
+[E27]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/compose.proxy.yml
+[E28]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/docs/self-host/README.md
+[E29]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/Cargo.toml
+[E30]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/wealthfolio-mcp/src/pat.rs
+[E31]:
+  https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/config.rs
