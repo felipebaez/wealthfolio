@@ -1,11 +1,13 @@
 # Architecture audit validation ledger
 
-Date: **2026-09-30**. Assignment: [issue #2](https://github.com/felipebaez/wealthfolio/issues/2).
-Report: [architecture.md](architecture.md). Accepted launch target: **more than 50 clients on one
-private server or VM**. No real client data, bank credentials or paid service calls were used. All
-commands in this lane ran with explicit working directory
-`/Users/felipebaez/Development/Wealthfolio-audits/architecture`; the primary checkout was read only
-for the authorized brief/workflow.
+Date: **2026-09-30**. Assignment:
+[issue #2](https://github.com/felipebaez/wealthfolio/issues/2). Report:
+[architecture.md](architecture.md). Accepted launch target: **more than 50
+clients on one private server or VM**. No real client data, bank credentials or
+paid service calls were used. All commands in this lane ran with explicit
+working directory
+`/Users/felipebaez/Development/Wealthfolio-audits/architecture`; the primary
+checkout was read only for the authorized brief/workflow.
 
 ## Coordination state
 
@@ -22,12 +24,13 @@ for the authorized brief/workflow.
 | Last synchronization | 2026-09-30 12:56 UTC: issue reread and chat title/category synchronized; final issue comment records exact revision/checkpoint                      |
 | Monitoring           | No continuous monitor configured                                                                                                                    |
 
-This record supplements the synthesis-owned index without editing it. The human workflow addendum
-was read through authenticated `gh` at
-[parent comment](https://github.com/felipebaez/wealthfolio/issues/1#issuecomment-5911547424). Issue
-title/body/comments/labels were read at startup and transitions; final title/state/labels/comments
-were reread before handoff. Title/category synchronization succeeded again at the final checkpoint;
-the issue records the final revision.
+This record supplements the synthesis-owned index without editing it. The human
+workflow addendum was read through authenticated `gh` at
+[parent comment](https://github.com/felipebaez/wealthfolio/issues/1#issuecomment-5911547424).
+Issue title/body/comments/labels were read at startup and transitions; final
+title/state/labels/comments were reread before handoff. Title/category
+synchronization succeeded again at the final checkpoint; the issue records the
+final revision.
 
 ## Baseline and environment
 
@@ -44,8 +47,8 @@ the issue records the final revision.
 | JS dependencies                                                 | Fresh worktree had no complete dependency setup. Attempted pnpm exec triggered an automatic install and was interrupted. Cache/partial ignored dependency artifacts may remain; no tracked manifest/lockfile changes were observed. No broad tool installation attempted. |
 | External research                                               | Official Git, SQLite and Wealthfolio Connect pages accessed 2026-09-30. Product statements are attributed, not independently verified remote-service guarantees.                                                                                                          |
 
-Metadata is a dated observation, not a guarantee that branches/releases remain unchanged later. All
-source links in the report pin the audited SHA.
+Metadata is a dated observation, not a guarantee that branches/releases remain
+unchanged later. All source links in the report pin the audited SHA.
 
 ## Executed checks
 
@@ -55,19 +58,21 @@ source links in the report pin the audited SHA.
 | `pnpm --filter frontend exec vitest run src/adapters/adapter-command-parity.test.ts` | **Did not run.** pnpm 11 automatically started dependency installation/resolution; interrupted with SIGINT, exit 130.                                                                                                                                                        | No Vitest pass/fail result. The dependency side effect is recorded, not represented as a compliant frozen-lock install.                               |
 | `git status --short`, `git diff -- pnpm-lock.yaml package.json` after interruption   | **Passed inspection: no tracked product/lockfile changes**                                                                                                                                                                                                                   | Scope preserved. Does not prove complete dependency setup or clean global cache.                                                                      |
 | `node docs/audits/2026-09-30/architecture/check-source.mjs`                          | **Passed:** 305 web literal calls, 315 Tauri literal calls, 314 mapped commands and 357 registrations, zero missing; 62 pinned links and two local links validated. An initial run before this ledger existed correctly failed its local-link check; the final rerun passed. | Dependency-free static inventory and documentation source path/line/reference checks. No runtime DTO, auth, event or network behavior.                |
-| Isolated Prettier 3.8.1 formatting/check                                             | **Passed** for the owned report, ledger and auxiliary artifacts; matching core/Markdown repository options, no Tailwind class sorting needed                                                                                                                                 | Formatter fetched into npm exec cache; no project dependency install or product lockfile edit. Full repository format job not run.                    |
+| Isolated Prettier 3.8.1 formatting/check                                             | **Passed locally**; initial CI identified two documents formatted at width 100 because overrides resolve relative to the nested config. Corrected the parent-document glob and reformatted all five files; final CI result recorded in issue #2                              | Formatter fetched into npm exec cache; no project dependency install or product lockfile edit. Full repository format job not run.                    |
 | Final `git diff --cached --check`, scoped diff/status review                         | **Passed** on all five staged, owned documentation/auxiliary files; no product paths included. Rechecked after coordination update.                                                                                                                                          | Whitespace and owned documentation scope. No product behavior guarantee.                                                                              |
 
-The audit helper reads adapter source and uses the same general literal-call/registration patterns
-as the existing parity test. It omits test/spec files and scans feature-local adapter directories.
-It is deliberately **not a replacement for Vitest**: regex cannot validate runtime exports,
-aliased/dynamic calls, handler routing, payload compatibility or authorization. It checks each
-commit-pinned documentation source path through `git show`, line bounds, local Markdown links and
-evidence references. It does not check remote page availability or assert that an entire claim is
-proven merely because a link exists.
+The audit helper reads adapter source and uses the same general
+literal-call/registration patterns as the existing parity test. It omits
+test/spec files and scans feature-local adapter directories. It is deliberately
+**not a replacement for Vitest**: regex cannot validate runtime exports,
+aliased/dynamic calls, handler routing, payload compatibility or authorization.
+It checks each commit-pinned documentation source path through `git show`, line
+bounds, local Markdown links and evidence references. It does not check remote
+page availability or assert that an entire claim is proven merely because a link
+exists.
 
-No product test was added. The helper is an auxiliary documentation/investigation artifact,
-requiring only Node and Git.
+No product test was added. The helper is an auxiliary
+documentation/investigation artifact, requiring only Node and Git.
 
 ### Reproduce the static observations
 
@@ -81,9 +86,10 @@ git log --oneline 392f272c5b15a4af45dc2ff71dcbec474f47112a..6ee11b1278eff8b51232
 git log --format= --name-only 392f272c5b15a4af45dc2ff71dcbec474f47112a..6ee11b1278eff8b5123280e740fa6983b501952b
 ```
 
-For the report's path-frequency observation, count occurrences of each nonempty path in the last
-command's output. It counts commits touching the path, not line churn. The two asset paths each
-occurred 11 times, activity service and quote client six each, profile shell/auth context five each.
+For the report's path-frequency observation, count occurrences of each nonempty
+path in the last command's output. It counts commits touching the path, not line
+churn. The two asset paths each occurred 11 times, activity service and quote
+client six each, profile shell/auth context five each.
 
 ## Source traces completed
 
@@ -100,12 +106,18 @@ occurred 11 times, activity service and quote client six each, profile shell/aut
 
 Formatting used
 `npm exec --yes --package=prettier@3.8.1 -- prettier --config docs/audits/2026-09-30/architecture/format-config.json`
-with `--write` then `--check` on owned files only. This narrowly scoped formatter is distinct from
-the aborted project dependency installation.
+with `--write` then `--check` on owned files only. Markdown overrides include
+`../*.md` because patterns resolve from the nested config directory; the initial
+`**/*.md` glob missed the parent report/ledger. GitHub formatting failed on
+initial handoff revision `76fa14c23bd67bd4bfaf8f1b70887f5c922ef4fb`; the
+corrected configuration and formatting replace that handoff. The final issue
+comment identifies the replacement revision and CI result. This narrowly scoped
+formatter is distinct from the aborted project dependency installation.
 
-Source-level contradictions are recorded in ARCH-05 (package manager), ARCH-09 (adapter docs/actual
-files and restore difference), and the report's product-marketing distinction (household/coming-soon
-features vs server client authorization). No unrelated code/docs were corrected.
+Source-level contradictions are recorded in ARCH-05 (package manager), ARCH-09
+(adapter docs/actual files and restore difference), and the report's
+product-marketing distinction (household/coming-soon features vs server client
+authorization). No unrelated code/docs were corrected.
 
 ## Architecture invariants: inspected versus tested
 
@@ -121,65 +133,72 @@ features vs server client authorization). No unrelated code/docs were corrected.
 
 ## Focused failure recipes awaiting runtime prerequisites
 
-These recipes deliberately use synthetic finance/identity data. They are acceptance proposals, not
-executed reproductions or claimed fixes.
+These recipes deliberately use synthetic finance/identity data. They are
+acceptance proposals, not executed reproductions or claimed fixes.
 
 ### ARCH-02: live FX substitution
 
-1. Create a synthetic CZK-base profile with 100 EUR cash and a EUR security position, no EUR/CZK,
-   inverse or cross rates, and an empty currency converter. Use locally supplied quotes; disable
-   providers.
-2. Read live holdings, totals and holdings export on web and Tauri. Trace the cash/security
-   `get_fx_rate_or_fallback` calls; source currently returns `Decimal::ONE` on lookup error and
-   assigns `Some(1)` to holding FX.
-3. Verify a known synthetic rate (e.g. 25 CZK/EUR) yields 2,500 CZK for the cash control; then
-   verify missing FX cannot present 100 CZK as a verified conversion after any selected fix.
-4. Verify no network requests are added to a holdings read. Validate representation in UI,
-   aggregated totals, export and historical quality separately; historical FX behavior is not
-   assumed identical to live fallback.
+1. Create a synthetic CZK-base profile with 100 EUR cash and a EUR security
+   position, no EUR/CZK, inverse or cross rates, and an empty currency
+   converter. Use locally supplied quotes; disable providers.
+2. Read live holdings, totals and holdings export on web and Tauri. Trace the
+   cash/security `get_fx_rate_or_fallback` calls; source currently returns
+   `Decimal::ONE` on lookup error and assigns `Some(1)` to holding FX.
+3. Verify a known synthetic rate (e.g. 25 CZK/EUR) yields 2,500 CZK for the cash
+   control; then verify missing FX cannot present 100 CZK as a verified
+   conversion after any selected fix.
+4. Verify no network requests are added to a holdings read. Validate
+   representation in UI, aggregated totals, export and historical quality
+   separately; historical FX behavior is not assumed identical to live fallback.
 
-Source confirmation does not prove how every UI currently displays the result. No numerical runtime
-result was produced.
+Source confirmation does not prove how every UI currently displays the result.
+No numerical runtime result was produced.
 
 ### ARCH-03: commit/event interruption
 
-1. Seed a synthetic transaction account with existing snapshots and daily valuation rows.
-2. Edit an old transaction/date and interrupt after repository commit before domain-event emission
-   or worker processing. The 500 ms event debounce is not itself a guaranteed deterministic
-   injection point; use a controlled test hook/mock in a future test, not timed production
-   termination.
-3. Restart; inspect latest/historical holdings/valuations and compare to explicit full rebuild. Test
-   normal reopen, failed provider refresh and transfers/manual snapshots separately.
-4. If existing mechanisms recover, narrow/retire the finding. If not, document the exact recovery
-   gap before designing a transactional dirty marker in the current writer path. Do not equate
-   device-sync outbox durability with domain recalculation durability.
+1. Seed a synthetic transaction account with existing snapshots and daily
+   valuation rows.
+2. Edit an old transaction/date and interrupt after repository commit before
+   domain-event emission or worker processing. The 500 ms event debounce is not
+   itself a guaranteed deterministic injection point; use a controlled test
+   hook/mock in a future test, not timed production termination.
+3. Restart; inspect latest/historical holdings/valuations and compare to
+   explicit full rebuild. Test normal reopen, failed provider refresh and
+   transfers/manual snapshots separately.
+4. If existing mechanisms recover, narrow/retire the finding. If not, document
+   the exact recovery gap before designing a transactional dirty marker in the
+   current writer path. Do not equate device-sync outbox durability with domain
+   recalculation durability.
 
 ### ARCH-04: provenance failure
 
-1. Inject failure in import-run create; import two valid synthetic rows through the existing
-   service. Inspect activities/run IDs/summary and separate failure diagnostics.
-2. Independently fail final run summary update after successful insertion; verify stale/incomplete
-   run state and returned result.
-3. Include two-account files, skipped row policy, duplicate preview/reimport, force import and
-   transaction failure. The present source permits best-effort run metadata; proposed required
-   provenance is a product decision.
+1. Inject failure in import-run create; import two valid synthetic rows through
+   the existing service. Inspect activities/run IDs/summary and separate failure
+   diagnostics.
+2. Independently fail final run summary update after successful insertion;
+   verify stale/incomplete run state and returned result.
+3. Include two-account files, skipped row policy, duplicate preview/reimport,
+   force import and transaction failure. The present source permits best-effort
+   run metadata; proposed required provenance is a product decision.
 
 ### ARCH-01/06/07/08: delegated consolidation checks
 
-- Identity/isolation: two different synthetic IdP subjects, fixed profile IDs, forged/stale/revoked
-  selectors and streams; backend client/advisor/operator grants after topology decision.
-  Installation login success alone is insufficient.
-- Logging: malformed synthetic performance payload with amounts and missing scope ID, plus a
-  synthetic `NOT_SET` broker account name. Capture frontend/native/server logs; assert selected
-  nonfinancial diagnostic policy.
-- Capacity: 60/100 registered clients, opened/runtime/connected/concurrent counts separately, agreed
-  active workload and activity-history sizes, 24-hour timer soak, restart bursts and reserved VM
-  resources. Report measured percentiles/RSS/CPU/disk/connection/queue counts; no estimated capacity
-  is presented as observed.
-- Recovery: restore one synthetic client and full registry/vault/key set; compare neighbor
-  availability (A vs shared B offline outage), retained manual inputs and revoked PAT behavior.
-  Select RPO/RTO before judging pass. No real data or destructive operation is authorized by these
-  recipes.
+- Identity/isolation: two different synthetic IdP subjects, fixed profile IDs,
+  forged/stale/revoked selectors and streams; backend client/advisor/operator
+  grants after topology decision. Installation login success alone is
+  insufficient.
+- Logging: malformed synthetic performance payload with amounts and missing
+  scope ID, plus a synthetic `NOT_SET` broker account name. Capture
+  frontend/native/server logs; assert selected nonfinancial diagnostic policy.
+- Capacity: 60/100 registered clients, opened/runtime/connected/concurrent
+  counts separately, agreed active workload and activity-history sizes, 24-hour
+  timer soak, restart bursts and reserved VM resources. Report measured
+  percentiles/RSS/CPU/disk/connection/queue counts; no estimated capacity is
+  presented as observed.
+- Recovery: restore one synthetic client and full registry/vault/key set;
+  compare neighbor availability (A vs shared B offline outage), retained manual
+  inputs and revoked PAT behavior. Select RPO/RTO before judging pass. No real
+  data or destructive operation is authorized by these recipes.
 
 ## Checks not run and prerequisites
 
@@ -194,6 +213,6 @@ result was produced.
 | Banks/Connect/market provider/remote AI       | No real data/credentials or contracts used. Synthetic fixtures do not prove institution support or paid-provider compatibility.                                                                                                                |
 | Full CI/source HEAD or image attestation      | Coordination reported Warm Rust Cache at source HEAD, not full CI. That cache run and other worker launcher/Python tests are not this lane's full runtime assurance. Documentation PR checks, if available, are reported separately.           |
 
-The findings are **not verified fixes**. All implementation is deferred; review can approve
-documentation completeness while runtime, security, capacity and bank-compatibility gates remain
-unresolved.
+The findings are **not verified fixes**. All implementation is deferred; review
+can approve documentation completeness while runtime, security, capacity and
+bank-compatibility gates remain unresolved.
