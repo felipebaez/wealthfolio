@@ -100,6 +100,7 @@ def backup(root):
     info = metadata(root)
     if not info.get("image"):
         raise ValueError("No deployed image to back up")
+    prepare_key(root)
     container = current_container(root)
     if not container:
         raise ValueError("No staging container to back up")
@@ -227,11 +228,13 @@ def deploy(root, revision, image=None):
     env = root / "deployment.env"
     env.write_text("\n".join(f"WF_IMAGE={tag}" if line.startswith("WF_IMAGE=") else line
                              for line in env.read_text().splitlines()) + "\n")
-    info.update(image=tag, revision=commit, image_id=docker(root, "image", "inspect", "--format", "{{.Id}}", tag,
+    info.update(image=tag, revision=commit, deployment_status="deploying", image_id=docker(root, "image", "inspect", "--format", "{{.Id}}", tag,
                                                         stdout=subprocess.PIPE).stdout.decode().strip())
     save_metadata(root, info)
     prepare_key(root)
     compose(root, "up", "--detach", "--wait", "--wait-timeout", "300")
+    info["deployment_status"] = "healthy"
+    save_metadata(root, info)
     print(f"Deployed {commit} at http://localhost:{info['port']}")
 
 

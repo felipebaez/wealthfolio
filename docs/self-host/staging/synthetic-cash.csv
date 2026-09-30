@@ -1,0 +1,4 @@
+date,symbol,quantity,activityType,unitPrice,currency,fee,amount
+2026-09-25,,1,DEPOSIT,1,USD,0,10000.00
+2026-09-26,,1,INTEREST,1,USD,0,25.00
+2026-09-27,,1,WITHDRAWAL,1,USD,0,250.00
