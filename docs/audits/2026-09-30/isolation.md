@@ -1,0 +1,386 @@
+# Client isolation decision record
+
+Audit date: 2026-09-30. Assignment:
+[issue #3](https://github.com/felipebaez/wealthfolio/issues/3), under
+[parent #1](https://github.com/felipebaez/wealthfolio/issues/1). Audited source:
+`6ee11b1278eff8b5123280e740fa6983b501952b`, branch `audit/3-security`. This
+document and [permissions-threat-model.md](permissions-threat-model.md) are
+investigative recommendations, not implemented capabilities or permission to
+deploy.
+
+## Executive recommendation
+
+**Inferred recommendation:** use option A, an independently configured
+application instance per client, for a two-client synthetic safety rehearsal on
+the single private server/VM. The accepted production planning target is **more
+than 50 clients on that one server/VM**; this rehearsal is not a capacity or
+production-readiness claim. Give each instance its own persistent data
+directory, vault, master key, hostname, and exact identity-provider allowlist.
+Never put multiple unrelated clients behind the existing profile selector. Keep
+advisor access limited to an explicitly approved export or an approved temporary
+session until backend advisor permissions exist. Merely adding the advisor to an
+instance's OIDC allowlist grants broad access; it cannot implement a read-only
+advisor role.
+
+**Confirmed source finding:** profiles provide separate databases and secret
+namespaces, plus safeguards against mixing browser scopes. They do not assign
+financial data to a business identity. An installation user can enumerate the
+registry and open any unprotected profile. A password-protected profile checks
+possession of a password or recovery code, not whether the caller is that
+client's owner. The server cannot distinguish client, advisor, or operator after
+login.
+
+**Inferred longer-term recommendation:** extend the existing
+database-per-profile model (option B) with a minimal persistent
+identity/ownership/permission control plane and backend enforcement. Preserve
+profile-specific services, databases, secrets, event buses, writer actors and
+background runtimes. Do not adopt shared tenant-aware financial storage (option
+C) without measured scale or reporting needs that option B cannot meet. Option B
+is a security feature project, not a configuration tweak or behavior-preserving
+refactor.
+
+**Architecture impact of this PR:** documentation only; no network/provider
+settings, execution timing, persistence, event ownership, failure propagation,
+retry policy, or user-edit precedence changes. Proposed future changes are
+identified explicitly below. Their acceptance tests are specified in the
+companion threat model; they have not passed here.
+
+## Baseline and evidence conventions
+
+- **Confirmed** means observed in the pinned source or an executed check. A
+  confirmed source path is not a demonstrated live exploit.
+- **Inferred** means a consequence or design recommendation supported by those
+  observations.
+- **Unknown** means not established by available source/checks, including
+  production behavior and practical resource limits.
+- Worktree HEAD and authenticated
+  `gh api repos/felipebaez/wealthfolio/branches/main` both returned the baseline
+  SHA. The supplied baseline records fork/upstream divergence as 0/0. This lane
+  did not query upstream because GitHub operations were restricted to
+  `felipebaez/wealthfolio`.
+- Source manifests are 3.9.2. Published upstream release v3.9.1 dated
+  2026-09-27, SHA `392f272c5b15a4af45dc2ff71dcbec474f47112a`, is supplied
+  coordination context, not the revision inspected here. The fork's
+  `/releases/latest` returned 404. No deployed image or release binary was
+  audited.
+- Root `AGENTS.md`, the human brief, and workflow were read. The latter two were
+  read by absolute path from the primary checkout because they were absent from
+  this baseline worktree. Only this lane's documentation was written here.
+
+## The existing execution path
+
+### Installation authentication and identity loss
+
+**Confirmed:** the password configuration holds one installation password hash,
+not a user table. JWT claims contain `sub`, `exp`, `iat`, and `sid`; issuance
+always sets `sub` to `wealthfolio-web`. A random `sid` is stable across sliding
+refreshes and changes on a new login. There is no client ID, role, profile
+membership, or revoked-session lookup in JWT validation.
+[Claims and issuance](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs#L149-L156),
+[issuance/validation](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs#L228-L259),
+[refresh](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs#L502-L537).
+
+**Confirmed:** OIDC discovers a configured issuer, performs authorization code
+exchange with PKCE and nonce verification, verifies ID-token claims and applies
+an issuer-local subject or verified-email allowlist. The callback then calls the
+same `issue_session_cookie(&headers)` as password login. The authenticated
+issuer/subject is not passed to the application's session. An optional encrypted
+ID-token cookie exists for RP logout; it is not consulted by profile
+authorization.
+[OIDC callback](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/oidc.rs#L443-L521),
+[allowlist](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/oidc.rs#L274-L317).
+
+**Inferred:** OIDC can gate admission to one installation, including a
+separately hosted client instance, but cannot give two admitted subjects
+different profile permissions. OIDC identity, a financial account, a browser
+`sid`, a profile UUID, and a Connect account are distinct concepts. Ownership
+should use verified `(issuer, subject)`, not an email supplied by the browser.
+[OIDC Core §5.7](https://openid.net/specs/openid-connect-core-1_0.html#ClaimStability),
+errata set 2 dated 2023-12-15, reviewed 2026-09-30, defines the issuer/subject
+pair as the stable identifier; email is unsuitable as the permanent key.
+
+### Registry, administration, and profile admission
+
+**Confirmed:** `profiles.json` and its backup hold a default profile ID and a
+vector of profiles. `Profile` contains name, avatar, lock hints, legacy paths,
+and optional Connect binding, but no client owner or permission relation. The
+registry has an exclusive installation lock. `list()` filters deletion state,
+not caller membership. `ProfileSummary` includes UUID, name, avatar, lock
+status, legacy status, and Connect-binding presence.
+[Profile shape](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/mod.rs#L99-L144),
+[registry](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs#L29-L52),
+[listing](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs#L485-L508).
+
+**Confirmed:** the main financial API is wrapped in profile admission, while
+`/profiles/{command}` is merged outside that wrapper and inside installation
+authentication. `get_profile_state` returns all active and pending-deletion
+summaries before any selected-profile requirement. `create_profile` has no
+operator role check. `unlock_profile` verifies the requested UUID's credential,
+builds that runtime, and issues a grant to the current browser.
+Update/password/deletion normally require the current scope; deletion also
+requires name confirmation and existing lock proof. A pending deletion can be
+retried without a fresh admitted grant, and startup retries pending cleanup.
+These are local profile-management semantics, not a client authorization model.
+[Router ordering](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api.rs#L215-L239),
+[commands](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L432-L585),
+[deletion lifecycle](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L155-L228).
+
+**Confirmed:** grants are in memory, keyed by authenticated web session ID (or
+native window identity). A scope selector is accepted only for its owner.
+Protected grants expire after five minutes without explicit activity;
+unprotected grants do not idle-expire. A browser has one current profile grant,
+so switching replaces it. The frontend captures the scope and reloads on profile
+change, and the backend supplies one fixed `AppState` to an admitted request.
+[Grant implementation](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/sessions.rs#L8-L89),
+[admission](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L645-L719),
+[frontend scope](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/frontend/src/features/profiles/session.ts#L1-L69).
+
+### Passwords, recovery, and logout
+
+**Confirmed:** profile passwords use Argon2id (19 MiB, two iterations, one lane,
+random salt); recovery codes have 128 random bits and a domain-separated hash.
+Incorrect supplied proofs accrue a persisted per-profile cooldown after five
+failures, up to 900 seconds. This can protect a locked local profile but also
+lets an installation user cause another profile's temporary lockout. Setting a
+password requires the existing proof where protected and revokes profile grants;
+recovery requires the code through the same verification path.
+[Verification](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs#L744-L853),
+[credential generation](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs#L857-L899).
+
+**Confirmed contradiction:** a source comment calls the recovery code
+“one-time,” but ordinary verification accepts it as an unlock proof and does not
+clear its hash. It remains reusable until password/recovery rotation. A
+successful password reset generates a replacement code, which is narrower than
+single-use recovery. A lock/password change does not change database encryption
+keys. Lost profile credentials do not prevent a trusted operator with
+filesystem/master-key access from reading the database.
+
+**Confirmed:** logout clears the session cookie and revokes this browser's
+current profile grant/auth flow. It does not invalidate the signed JWT itself.
+Replaying a still-valid token passes installation authentication and can
+explicitly request a new unlock; an unprotected profile needs no proof. Changing
+an IdP allowlist or disabling an IdP subject does not trigger an application
+subject/session lookup.
+[Logout](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs#L424-L447),
+[profile revocation on logout](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L759-L782).
+
+### Databases, vault, operator trust, and legacy behavior
+
+**Confirmed:** new profiles use `profiles/<uuid>/app.db` and sibling `backups`,
+`scratch`, and `addons` directories. The adopted default retains its legacy
+database/root. `ScopedSecretStore` prefixes new profile logical keys with
+`profile:<uuid>:`; the adopted default retains the empty prefix for
+compatibility. All profiles wrap the installation's same file-backed vault,
+encrypted with an installation key. New profile database keys use
+profile-specific HKDF context, but derive from the same installation master; the
+default preserves its old derivation.
+[Paths](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/registry.rs#L510-L552),
+[secret namespaces](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/mod.rs#L147-L223),
+[key derivation](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/auth.rs#L322-L364),
+[vault opening](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L88-L106).
+
+**Confirmed:** missing scope on ordinary financial routes is permitted only when
+exactly one active profile exists and it is unprotected. Auto-open happens once
+per browser's visited state; explicit locking defeats automatic reopen.
+Malformed scope does not fall back. Multiple profiles or a protected profile
+require a scope. MCP is a separate exception: no `x-wf-profile-id` selects the
+registry's default, then authenticates a PAT against that selected profile.
+Offline maintenance/restore likewise defaults unless `--profile` is given.
+[Legacy admission](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L265-L286),
+[ordinary/MCP selection](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L656-L756),
+[offline selection](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/profiles.rs#L786-L822).
+
+**Inferred trust boundary:** server-side encryption protects stolen files when
+the master key is separately protected. It does not provide privacy against the
+operator, root user, application process, or a compromise of the shared
+server/master key. Device-sync E2EE also does not hide data from a server
+enrolled as a decrypting device. Separate keys in option A reduce accidental
+cross-client restore and blast radius; a common root/operator remains trusted.
+
+## Findings register
+
+Severity is against the proposed hosted advisory use, not a claim that personal
+single-owner use is broken. High means a client confidentiality, integrity, or
+revocation requirement would fail; medium means a material
+capability/availability or assurance gap. Source paths and verification are
+pinned above or below. None was exploited against real data.
+
+| ID     | Severity / status                                       | Impact and affected paths                                                                                                                                                                                           | Reproduction or verification                                                                                                                                                           | Proposed action                                                                                                                                                                                   |
+| ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SEC-01 | High; confirmed mechanism, inferred business impact     | OIDC identity is discarded from app sessions; client/advisor permissions cannot be evaluated. `auth.rs`, `oidc.rs`, profile model.                                                                                  | Trace verified callback to generic cookie issuance and fixed JWT subject; search profile fields for ownership.                                                                         | Keep distinct verified issuer/subject principals and authorize profile membership at backend admission. Avoid shared password client identities.                                                  |
+| SEC-02 | High; confirmed                                         | Every installation user can enumerate client-like profile names/UUIDs/lock and Connect-presence hints, including pending deletions. `profiles.rs`, registry/model.                                                  | POST `get_profile_state` with synthetic admitted installation cookie and no scope; inspect unconditional list response. Runtime reproduction pending.                                  | Filter summaries by authorized relationships; operator enumeration is a separate audited privilege. Avoid distinguishable foreign-profile errors.                                                 |
+| SEC-03 | High; confirmed                                         | Possession-based unlock and broad management; any installation user can open an unprotected profile, alter its data, add a lock, export, or delete it after confirmation. No advisor read-only mode.                | Source trace `unlock_profile` → `verify` with no verifier → grant; source test deliberately opens two unprotected profiles under different browsers.                                   | Require ownership/grants before unlock, mutation, creation/deletion, password/recovery and pending-cleanup administration. Extend existing registry/admission.                                    |
+| SEC-04 | High; confirmed                                         | Logout revokes a grant but not JWT installation admission; no per-identity suspension/revoke-all. IdP disable/allowlist removal cannot invalidate existing local sessions.                                          | Replay synthetic still-valid token after logout, then explicitly unlock unprotected profile; code validation checks JWT, not principal state. Not executed here.                       | Revocable local sessions/subject state; invalidate all related grants, callbacks and tokens on suspension. Define idle and absolute expiry.                                                       |
+| SEC-05 | High; confirmed semantics, inferred policy gap          | Browser locks do not suspend periodic jobs or PATs; an admitted write can commit after lock while response is denied. `profiles.rs`, scheduler, test.                                                               | Existing delayed-write test expects `A completed` after lock and B untouched; read scheduler and MCP branch.                                                                           | Distinguish lock from suspension/offboarding. Fence new job/tool writes on authorization revision when implementing suspension; decide treatment of an already committed transaction.             |
+| SEC-06 | Medium; confirmed                                       | Recovery code can repeatedly unlock until rotation despite “one-time” comment; installation users can induce another profile's cooldown. Registry verification.                                                     | Verification checks recovery hash but leaves it intact; cooldown is shared per profile.                                                                                                | Decide single-use recovery semantics, require identity-authorized recovery, consume/rotate atomically, test concurrent attempts. Preserve current protections until a migration plan is selected. |
+| SEC-07 | Medium; confirmed mechanism, inferred availability risk | When MCP is enabled, profile selection and cold runtime creation occur before PAT validation. Guessed/leaked valid UUIDs can trigger initialization/workers without valid auth; missing header chooses default.     | Trace `profiles::mcp` → `runtime` → service router `require_pat`; no pre-PAT identity gate. No load test.                                                                              | Keep MCP disabled for pilot. In B authenticate before heavy initialization and require explicit authorized target; retain profile-local PAT hash/scopes.                                          |
+| SEC-08 | High for read-only advisor rollout; confirmed           | Once a profile grant exists, browser API has broad data/secret/Connect/PAT/admin abilities; frontend hiding cannot restrict advisor export or credential access. `api/secrets.rs`, `connect.rs`, `agent_access.rs`. | GET `/secrets` accepts allowed provider keys; GET `/connect/session/restore` returns access/refresh tokens; PAT creation accepts valid requested scopes without a caller-role ceiling. | Separate read, edit, export, connection, secret, token, restore and admin capabilities. Never give advisor browser access to token recovery or provider secret retrieval.                         |
+| SEC-09 | Medium; confirmed assurance limitation                  | Source tests establish scope separation, not client ownership; runtime isolation suite unrun in this environment.                                                                                                   | Inspect fixture with synthetic browsers/unprotected profiles; tool limitations below.                                                                                                  | Execute existing tests and companion adversarial matrix on reproducible synthetic staging before any multi-client approval.                                                                       |
+
+Provider keys are exposed only within an admitted profile; reserved internal
+keys and `profile:` namespace injection are rejected by
+[core validation](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/secrets/mod.rs#L85-L113).
+SEC-08 is about insufficient role distinctions, not a demonstrated
+cross-namespace secret bypass. Connect restore evidence:
+[handler](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api/connect.rs#L514-L528);
+PAT scope creation evidence:
+[handler](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/src/api/agent_access.rs#L94-L168).
+
+## Option comparison and decision
+
+The business tenant means the contractual client boundary, not necessarily one
+natural person. Household joint access is an unresolved business choice. Costs
+below are relative; no provider charges or sizing benchmarks were available.
+Human steering sets the target to more than 50 clients on one private server/VM;
+hardware and active concurrency are unspecified.
+
+| Criterion              | A: instance per client                                                                                                                      | B: deployment, database per profile + ownership                                                                                               | C: shared tenant-aware financial storage                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Isolation              | Distinct app process, volume, vault, keys and ingress allowlist. Host/operator and image supply chain still shared trust.                   | Existing file/service separation plus new authoritative membership checks. One process/master key has broad blast radius.                     | Every row/query/join/cache/job must carry tenant context. SQLite has no demonstrated application-independent row policy here. |
+| Implementation effort  | Low application effort for restricted single-client access; substantial operations. Fine-grained advisor access still needs product work.   | Medium/high security work across auth, registry, sensitive routes and lifecycle; financial repositories mostly reused.                        | Very high migration and repository/service rewrite burden; current per-profile API still needs auth work.                     |
+| Hosting cost           | Highest per-client fixed process/resources; exact idle CPU/RAM unknown.                                                                     | Shared static/frontend infrastructure; each opened profile still has pool/services/cache/workers. Need benchmark.                             | Potential resource efficiency at large scale; no measurement justifies it now.                                                |
+| Onboarding             | Provision instance, unique key/data path/host and exact client IdP allowlist; invitation process external/manual.                           | Invitation binds verified principal to owned profile; new backend onboarding needed.                                                          | Tenant provisioning plus identity relations and tenant migrations.                                                            |
+| Advisor access         | No current read-only app role. Client-authorized export is the narrow pilot path; full temporary admission must be explicit and understood. | Explicit client-specific read grant, export separately approved, editable grant only when selected.                                           | Same policy work plus mandatory tenant filtering in all advisor queries.                                                      |
+| Backup/restore         | One client installation snapshot/key set; easiest routing of operator restore, rehearsed offline.                                           | Whole-root registry/vault backup plus per-profile DB snapshots; restore must not change memberships or cross profile identity.                | Whole database restore affects all tenants; per-client logical restore/export requires substantial new tooling.               |
+| Scaling                | Fleet provisioning and upgrades; one instance per storage root. No many-process sharing of the same registry/vault.                         | Registry/runtime initialization and growing retained runtime resources need load tests; one writer per database remains useful.               | Shared write contention/queries/migrations need redesign and measurement.                                                     |
+| Upstream compatibility | Minimal source delta; repeat pinned upgrade checks across instances.                                                                        | Concentrated ownership/admission patch; profile/auth changes upstream are conflict hotspots, but financial domain stays intact.               | Persistent conflicts across repositories, schema, queries, jobs, exports and migrations.                                      |
+| Failure scope          | Usually one client application/key/volume; host failure can affect fleet.                                                                   | Process, registry/vault corruption or master-key failure can affect every client. Profile-local business/provider failures can stay separate. | Storage/process compromise and bad query/migration can affect all tenants.                                                    |
+| Privacy from operator  | Not provided; host/root/master-key access can read.                                                                                         | Not provided; common server can decrypt every profile.                                                                                        | Not provided; shared process can read all tenant data.                                                                        |
+
+**Inferred decision:** A is the smallest pilot boundary supported without
+inventing financial tenancy. B is the preferred product direction if one
+deployment and in-app advisor access are business requirements. C is deferred. A
+pilot is conditional on operations work (HTTPS/trusted ingress, separate
+mounts/keys, backup drill, exact IdP users, prompt session revocation at the
+gateway), not approval that today's application provides all permission-matrix
+features.
+
+### Why new state would be necessary for B
+
+**Inferred proposed boundary change:** a durable control plane needs principals,
+profile ownership/memberships, narrow advisor permissions, suspension status and
+revocable session/authorization revisions. Existing ephemeral browser grants
+cannot remember who owns a profile across login or restart; `Profile.connect`
+identifies a cloud account and cannot serve as a local owner; password verifiers
+express possession, not a role. This state prevents cross-client admission and
+continued access after revocation. It is required behavior for B, not optional
+resilience.
+
+Select the minimal persistence location and compatibility plan only after the
+human chooses B. Reuse `ProfileRegistry` and `ProfileSessions` for selection and
+revocation, and the fixed `AppState` for data context. Do not add a shared
+financial database, second event queue, new worker fleet, distributed lock or
+speculative retry mechanism. Preserve the legacy default UUID, database paths,
+vault prefixes, Connect reservations and shipped migrations. A versioned upgrade
+must assign existing profiles explicitly and fail closed for unmatched subjects;
+no silent default owner or automatic email match.
+
+### More than 50 clients on one private server/VM
+
+**Accepted requirement:** one private server or VM; more than 50 clients. No
+existing container platform, hardware capacity or active-user count is assumed.
+Process/volume separation on that VM helps client-to-client isolation but does
+not isolate clients from root, fleet credentials, the hypervisor/operator,
+common kernel or shared ingress. This changes operational feasibility, not the
+source finding that current profiles lack ownership.
+
+**Inferred production choice:** A remains viable only with automated fleet
+provisioning and measured resource fit: one process/service identity, private
+data directory/vault/master key, exact IdP admission and host routing per
+client; no client-visible orchestration credentials. Configuration management
+must maintain the client-to-instance/key/backup mapping, enforce unique keys,
+provision invitations, patch all instances, rotate/revoke access and report
+failures. A container runtime is one possible later choice, not a prerequisite
+already demonstrated. Manual setup of 50-plus instances is not the proposed
+operating model. The operator control plane must itself deny a client access to
+another client's instance or backup.
+
+**Inferred alternative:** B reduces fleet/configuration duplication and supports
+advisor workflow in one app, but requires SEC-ID/OWN/PERM/LIFE before
+multi-client use. Database-per-profile keeps services/worker resources per
+opened profile; there is no measured evidence that one process with 60 profiles
+is cheaper or faster than 60 processes. Runtimes are retained after browser
+lock, connected profiles warm on startup, and cold initialization is serialized.
+Benchmark these paths rather than infer capacity from SQLite or the word
+profile. C still adds migration risk without solving the immediate identity
+problem.
+
+Proposed quantitative gates below are **unexecuted targets for agreement**, not
+measured capacity or promised SLAs. Use 60 synthetic clients to exceed 50,
+record the VM vCPU/RAM/disk and versions, and test A and B candidates with
+equivalent data/provider mocks. Replace this workload with agreed production
+assumptions before sizing.
+
+| Gate                      | Proposed test and evidence                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Confidentiality/integrity | Run the complete negative matrix across at least two clients, plus 60-client randomized target/scope/backup routing; zero foreign rows/files/events/secrets or unauthorized outbound calls.                                                                                                                                                                                         |
+| Resource fit              | Measure all-60 idle and all-60 initialized/connected footprints, then 5/15/30 concurrent active clients (provisional concurrency scenarios); record per-process/profile RSS, DB connections, disk I/O, CPU and queue depth. Provisional gate: peak aggregate RAM and sustained CPU each below 70% of available capacity, no OOM, restart loops, lost writes or out-of-space errors. |
+| Startup/onboarding        | Provision all 60 from a reviewed inventory; zero duplicate keys/mounts/IdP grants. Cold restart and concurrent first-admission tested; report total warmup and p50/p95 admission time. Proposed ordinary cached-read p95 <2 seconds and cold profile admission p95 <10 seconds; sync/large import/export measured separately, not hidden inside these targets.                      |
+| Workload                  | Provisional sizes: 10 accounts and 10,000 activities per client, plus 100,000-activity stress case; concurrent CSV imports, exports, recalculation and scheduler ticks. Report actual counts and duration; these are synthetic loads, not known client sizes. No live provider requests or paid load tests.                                                                         |
+| Backups and restore       | One complete 60-client backup cycle plus random single-client restore and whole-VM recovery; verify hashes and client/key/registry mapping, consistent DB/vault snapshots, zero cross-client replacements. Report duration, storage amplification and achieved recovery point/time; no release gate until human-approved RPO/RTO and retention exist.                               |
+| Monitoring and revocation | Every process/profile job failure is attributable using opaque IDs without financial values. Provisional suspension target: new requests denied immediately after local commit and active stream closure ≤2 seconds; verify every active browser/PAT/job plus restart, not just dashboard disappearance. Fleet IdP/gateway revocation behavior must be measured for A.              |
+
+**Unknown:** which VM size, active concurrency, backup window, availability
+objective and aggregate storage growth will satisfy these gates. Single-VM host
+failure affects all clients under A, B and C; accepting that common failure
+domain is a business decision. Capacity evidence and disaster-recovery evidence
+must precede approval for more than 50 clients.
+
+## Existing tests and validation limitations
+
+**Confirmed source coverage, not executed here:**
+[server profile tests](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/apps/server/tests/profiles.rs#L72-L409)
+exercise separate browser scopes, settings/databases/secrets, a stolen scope
+rejection, password revocation, delayed write behavior, wrong-profile PAT
+rejection and MCP session separation. Other cases cover malformed/unscoped
+fallback, deletion, missing legacy files, profile-local quote reset, proxy
+origin and an idle NDJSON stream closing on lock.
+[Core tests](https://github.com/felipebaez/wealthfolio/blob/6ee11b1278eff8b5123280e740fa6983b501952b/crates/core/src/profiles/sessions.rs#L175-L244)
+cover protected/unprotected lifecycle and owner checks. They do not assert that
+browser B lacks permission to unlock profile A: both are installation users by
+design.
+
+Executed in this worktree:
+
+| Check                                                                                       | Result and meaning                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node --test scripts/tauri.test.mjs`                                                        | Passed 4/4. Build-command configuration only; not an auth/security test.                                                                                                                                                |
+| Focused frontend profile session/API/auth-bridge Vitest invocation                          | Did not run. pnpm 11 automatically initiated dependency installation when dependencies were missing; interrupted with exit 130. Downloads occurred, but no tracked changes were observed. No further install attempted. |
+| Rust profile/auth/MCP/backup tests; runtime compilation                                     | Not run: Cargo unavailable on PATH. Docker unavailable, so no container-based substitute.                                                                                                                               |
+| App build, E2E, live IdP/MFA, browser/network/worker and more-than-50-client capacity tests | Not run: dependencies/runtime prerequisites absent; no real service or credential used.                                                                                                                                 |
+| Documentation pinned-link/range validation and `git diff --check`                           | Run before PR; see [validation record](security/validation.md). These prove documentation consistency only.                                                                                                             |
+
+Node available is 26.10.0 versus requested 24; pnpm is 11.19.0 versus pinned
+10.33.4; Rust toolchain file requests 1.98.1. No broad tool installation was
+attempted. Production deployment configuration, identity-provider policies,
+secret-key custody, hardware, simultaneous activity, portfolio sizes, recovery
+objectives, legal requirements and actual runtime resource use remain
+**unknown**. The accepted planning target is more than 50 clients on one private
+server/VM. No claim of “secure multi-user support” or verified production
+vulnerability follows from these checks.
+
+## Proposed backlog and business decisions
+
+All entries are proposals for the orchestrator to deduplicate. No implementation
+issue was created, no migration chosen, and effort means engineer-days excluding
+procurement, legal review and production rollout. Estimates are inferred, with
+confidence about scope rather than a guarantee of schedule.
+
+| Key / outcome                                           | Dependencies                                        | Effort / confidence   | Acceptance and validation                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SEC-PILOT: isolated client fleet on one VM              | Human selects A; operations/licensing audit         | 7–15 days; medium/low | Automated provisioning/removal/upgrade and a 60-client capacity run after a two-client safety rehearsal; separate hostname/process/volume/vault/master keys/IdP admission; cross-host cookies/keys/backup routing denied; offline restore drill; document operator trust and advisor export procedure. |
+| SEC-ID: retain principals and revocable local admission | Human selects B and identity policy                 | 4–8 days; medium      | Persist verified issuer/subject; no browser-provided ownership; suspend/revoke-all denies old tokens and fresh login; IdP user removal behavior and MFA policy tested; shared password cannot masquerade as named client.                                                                              |
+| SEC-OWN: profile ownership and administration           | SEC-ID; household/default migration decision        | 5–10 days; medium     | Filter list/pending metadata; foreign profile UUID denied before runtime init; unprotected foreign profile still denied; create/delete/password/recovery checked; existing profile upgrade fail-closed; invitation reuse/race tests.                                                                   |
+| SEC-PERM: client/advisor/operator permissions           | SEC-OWN; human approves matrix                      | 6–12 days; medium     | Read-only advisor cannot write, export, reveal secrets, recover Connect tokens, mint excessive PAT scopes, install add-ons or restore; grants/revocation recorded; direct API and tool tests cover every capability.                                                                                   |
+| SEC-LIFE: suspension across streams, tokens and jobs    | SEC-ID/OWN/PERM; treatment of in-flight work chosen | 5–10 days; low/medium | After suspension no new browser/PAT access or disallowed job commits; idle SSE/MCP/AI teardown; queued jobs keep original target; concurrent-browser/callback/restart tests. Reuse existing worker lifecycle/gates.                                                                                    |
+| SEC-REC: identity-authorized recovery/offboarding       | SEC-OWN/PERM; retention/operator policy             | 3–6 days; medium      | Recovery proof single-use if selected; all sessions/PATs invalidated, connections revoked explicitly, matching profile restore cannot restore revoked grants; deletion/backups handled under approved retention.                                                                                       |
+| SEC-GATE: complete adversarial evidence and scale check | Above for B; SEC-PILOT for A; test prerequisites    | 4–8 days; medium      | Execute companion matrix on both builds where affected, synthetic IdP/Connect/AI; no disabled-provider requests, no cross-profile event/cache/import/export artifacts; pinned staging report and resource measurements.                                                                                |
+
+Decisions needed: pilot A versus immediate B; whether a client is one person or
+a household; advisor read-only default and whether export/edit can be separately
+granted; trusted-operator access and break-glass audit expectations;
+IdP/MFA/recovery provider and suspension time objective; enabled outbound
+features (AI, Connect, sync, MCP, add-ons); retention/offboarding and backup
+policy; active concurrency, VM resources, portfolio sizes, recovery objectives
+and fleet operating budget for the accepted more-than-50-client target.
+Implementation remains pending human direction after consolidated review.
