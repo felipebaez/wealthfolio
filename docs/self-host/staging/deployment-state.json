@@ -1,0 +1,29 @@
+{
+  "issue_url": "https://github.com/felipebaez/wealthfolio/issues/7",
+  "chat_id": "01a0f253-ac64-76a1-b316-7f69f7dccb44",
+  "status": "In Progress",
+  "branch": "deploy/docker-staging",
+  "worktree": "/Users/felipebaez/Development/Wealthfolio-staging",
+  "source_branch": "main",
+  "source_commit": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "deployed_commit": "6ee11b1278eff8b5123280e740fa6983b501952b",
+  "image": "wealthfolio-staging:6ee11b1278eff8b5123280e740fa6983b501952b",
+  "access_url": "http://localhost:18088",
+  "runtime_directory": "/Users/felipebaez/Development/Wealthfolio-staging-runtime",
+  "docker_context": "colima-wealthfolio-staging-qemu",
+  "last_synchronization": "2026-09-30T13:20:04.928448+00:00",
+  "notes": "Required Docker acceptance checks passed using synthetic cash data. ARM64 image built natively on GitHub Actions; local QEMU software-emulation runtime. Review-awaiting PR remains In Progress; no merge.",
+  "chat_name": "🟡-7-Deploy Docker staging environment on development computer",
+  "category": "In Progress",
+  "pr_url": "https://github.com/felipebaez/wealthfolio/pull/12",
+  "build_run": "https://github.com/felipebaez/wealthfolio/actions/runs/36716582110",
+  "category_verified": false,
+  "blockers": [
+    "Sidebar move tool acknowledges changes, but list_threads still reports this chat under Tasks"
+  ],
+  "image_id": "sha256:4f271d67f98d74319fe46ba0694d5f5a9151519adc5088023434af5c567574f3",
+  "backup": "/Users/felipebaez/Development/Wealthfolio-staging-runtime/backups/20260930T131221163417Z",
+  "restore_project": "wealthfolio-staging-restore-20260930",
+  "validation_evidence": "/Users/felipebaez/Development/Wealthfolio-staging-runtime/evidence",
+  "restore_stopped": true
+}
